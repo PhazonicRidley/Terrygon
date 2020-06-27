@@ -1,0 +1,12 @@
+[Unit]
+Description=Terrygon discord bot
+
+[Service]
+#Type=simple
+#User=youruser
+WorkingDirectory=/path/to/bot
+ExecStart=/usr/bin/python3 /path/to/main.py
+Restart=always
+
+[Install]
+WantedBy=default.target
