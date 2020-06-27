@@ -53,14 +53,18 @@ class SpaceCore(commands.Bot):
     async def preparedb(self):
         """Prepare our database for use"""
         async with self.db.acquire() as conn:
-            with open("schema.sql", 'r') as schema:
-                try:
-                    await conn.execute(schema.read())
-                except asyncpg.PostgresError as e:
-                    consoleLogger.exception(
-                        "A SQL error has occurred while running the schema, traceback is:\n{}".format("".join(
-                            format_exception(type(e), e, e.__traceback__))))
-                    raise errors.sqlError("preparedb", format_exception(type(e), e, e.__traceback__))
+            try:
+                with open("schema.sql", 'r') as schema:
+                    try:
+                        await conn.execute(schema.read())
+                    except asyncpg.PostgresError as e:
+                        consoleLogger.exception(
+                            "A SQL error has occurred while running the schema, traceback is:\n{}".format("".join(
+                                format_exception(type(e), e, e.__traceback__))))
+                        raise errors.sqlError("preparedb", format_exception(type(e), e, e.__traceback__))
+            except FileNotFoundError:
+                print("schema file not found, please check your files, remember to rename schema.sql.example to schema.sql when you would like to use it")
+                sys.exit(1)
 
     # adapted from https://github.com/T3CHNOLOG1C/GLaDOS/blob/master/GLaDOS.py#L114 and old versions of this repo
     async def on_command_error(self, ctx, error):
