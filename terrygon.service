@@ -1,0 +1,12 @@
+[Unit]
+Description=Phaz's discord bot
+
+[Service]
+#Type=simple
+#User=ridley
+WorkingDirectory=/home/ridley/Untitled-Discord-Bot
+ExecStart=/usr/bin/python3.8 /home/ridley/Untitled-Discord-Bot/main.py
+Restart=always
+
+[Install]
+WantedBy=default.target

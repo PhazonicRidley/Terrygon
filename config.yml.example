@@ -1,0 +1,51 @@
+################################
+###### Bot Configuration #######
+################################
+################################
+
+# Bot authentication token
+
+token :
+
+# db connection, use postgres!
+
+db : postgres://username:password@domain:port
+
+# default used to execute bot commands
+
+default_prefix : '.'
+
+# Description of the bot
+
+description : A multipurpose discord bot
+
+# default playing status
+
+activity : Async could be the future
+
+# bot err channel id (List of channel ids)
+boterrchannelid:
+  -
+
+# bot owner (List of user ids)
+botOwners:
+  -
+
+# addons to load
+addons :
+  - approval
+  - setup
+  - botowner
+  - events
+  - mod
+  - misc
+  - warn
+
+
+# list of custom cogs to load
+cogs :
+  - qrgen
+  - memes
+  - toggleroles
+  - colors
+  - accountinfo

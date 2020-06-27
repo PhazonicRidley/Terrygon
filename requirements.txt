@@ -1,0 +1,14 @@
+setuptools
+logzero~=1.5.0
+discord~=1.0.1
+asyncpg~=0.20.1
+tabulate~=0.8.7
+pyyaml~=5.3.1
+pylast==3.1.0
+qrcode==6.1
+pillow
+aiohttp~=3.6.2
+git+https://github.com/Rapptz/discord-ext-menus
+dpy-ui
+webcolors~=1.3
+jishaku
