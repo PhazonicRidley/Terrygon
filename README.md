@@ -61,7 +61,7 @@ Run commands `systemd --user daemon-reload` and then finally `systemd --user sta
 
 ## Credits
 - [Rapptz](https://github.com/Rapptz) for [discord.py](https://github.com/Rapptz/discord.py/tree/rewrite).
-- [astronautlevel](https://github.com/astronautlevel2) for his [QR code addon](https://github.com/astronautlevel2/Discord-Cogs/blob/master/qrgen.py).
+- [astronautlevel](https://github.com/astronautlevel2) for her [QR code addon](https://github.com/astronautlevel2/Discord-Cogs/blob/master/qrgen.py).
 - [T3CHNOLOG1C](https://github.com/T3CHNOLOG1C) for the orginal code.
 - [Snowfall](https://gitlab.com/lightning-bot/Lightning) for general advice and code inspiration.
 - [Noirscape](https://git.catgirlsin.space/noirscape/) for general advice and code inspiration.
