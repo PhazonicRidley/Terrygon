@@ -64,7 +64,7 @@ class SpaceCore(commands.Bot):
                         raise errors.sqlError("preparedb", format_exception(type(e), e, e.__traceback__))
             except FileNotFoundError:
                 print("schema file not found, please check your files, remember to rename schema.sql.example to schema.sql when you would like to use it")
-                sys.exit(1)
+                await self.logout()
 
     # adapted from https://github.com/T3CHNOLOG1C/GLaDOS/blob/master/GLaDOS.py#L114 and old versions of this repo
     async def on_command_error(self, ctx, error):
