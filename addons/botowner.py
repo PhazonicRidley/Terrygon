@@ -172,7 +172,7 @@ class BotOwner(commands.Cog):
             if platform.system() == 'Linux':
                 try:
                     await self.bot.logout()
-                    os.system('systemctl --user stop phazbot.service') # TODO update name
+                    os.system('systemctl --user stop terrygon.service') # TODO update name
                 except Exception:
                     pass
             await self.bot.logout()
@@ -196,7 +196,7 @@ class BotOwner(commands.Cog):
         if platform.system() == 'Linux':
             try:
                 await self.bot.logout()
-                os.system('systemctl --user restart phazbot.service') # TODO update name
+                os.system('systemctl --user restart terrygon.service') # TODO update name
                 await ctx.send("Restarted")
             except Exception:
                 await ctx.send("Unable to restart bot! error with restarting via systemd")
