@@ -66,10 +66,14 @@ class SpaceCore(commands.Bot):
                 print("schema file not found, please check your files, remember to rename schema.sql.example to schema.sql when you would like to use it")
                 await self.logout()
 
-    # adapted from https://github.com/T3CHNOLOG1C/GLaDOS/blob/master/GLaDOS.py#L114 and old versions of this repo
     async def on_command_error(self, ctx, error):
         if isinstance(error, (commands.errors.CommandNotFound, commands.errors.CheckFailure)):
             return
+
+        elif isinstance(error, commands.CommandInvokeError):
+            if isinstance(error.original, discord.Forbidden):
+                await ctx.send("Help me help you! I cannot do part of my functionality because you wont let me!")
+
         elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument)):
             await ctx.send("Improper usage")
             await ctx.send_help(ctx.command)
