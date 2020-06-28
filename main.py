@@ -20,7 +20,7 @@ path = dirname(realpath(__file__))
 chdir(path)
 
 
-class SpaceCore(commands.Bot):
+class Terrygon(commands.Bot):
     def __init__(self):
         loop = asyncio.get_event_loop()
         help_cmd = commands.DefaultHelpCommand(dm_help=None)
@@ -169,5 +169,5 @@ class SpaceCore(commands.Bot):
 
 
 if __name__ == "__main__":
-    bot = SpaceCore()
+    bot = Terrygon()
     bot.run(bot.readConfig("token"))
