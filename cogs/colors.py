@@ -213,7 +213,7 @@ class Colors(commands.Cog):
 
     @personalcolor.command()
     async def delmember(self, ctx, member: discord.Member = None):
-        """Manually deletes a color role for a user (Requires you to be able to manage roles or Mod)"""
+        """Manually deletes a color role for a user (Requires you to be able to manage roles or Mod to delete another's color role)"""
         if member is None or member == ctx.author:
             member = ctx.author
         else:
