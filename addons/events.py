@@ -145,6 +145,14 @@ class Events(commands.Cog):
 
     @checks.is_bot_owner()
     @commands.command()
+    async def autoguildadd(self, ctx):
+        """Automatically tries to add every guild the bot is in to the database, if they're already in there, nothing happens"""
+        for guild in self.bot.guilds:
+            await self.addGuild(guild)
+        await ctx.send("Added all guilds to the database!")
+
+    @checks.is_bot_owner()
+    @commands.command()
     async def manualguildadd(self, ctx, newGuildid):
         newGuild = await self.bot.fetch_guild(newGuildid)
         await self.addGuild(newGuild)

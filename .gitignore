@@ -5,9 +5,10 @@
 *.log
 *.pyc
 .DS_Store
-
+.idea
+.vscode
 .DS_Store?
-
+__pycache__
 ._*
 
 .Spotlight-V100

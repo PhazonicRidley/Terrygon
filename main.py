@@ -23,7 +23,7 @@ chdir(path)
 class Terrygon(commands.Bot):
     def __init__(self):
         loop = asyncio.get_event_loop()
-        help_cmd = commands.DefaultHelpCommand(dm_help=None)
+        help_cmd = commands.MinimalHelpCommand(dm_help=None, dm_help_threshold=800)
         super().__init__(command_prefix=self.readConfig('default_prefix'), description=self.readConfig("description"),
                          max_messages=10000, help_command=help_cmd)
 
@@ -70,9 +70,8 @@ class Terrygon(commands.Bot):
         if isinstance(error, (commands.errors.CommandNotFound, commands.errors.CheckFailure)):
             return
 
-        elif isinstance(error, commands.CommandInvokeError):
-            if isinstance(error.original, discord.Forbidden):
-                await ctx.send("Help me help you! I cannot do part of my functionality because you wont let me!")
+        elif isinstance(error, commands.CommandInvokeError) and isinstance(error.original, discord.Forbidden):
+            await ctx.send("Help me help you! I cannot do part of my functionality because you wont let me!")
 
         elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument)):
             await ctx.send("Improper usage")
@@ -88,11 +87,12 @@ class Terrygon(commands.Bot):
             await ctx.send("You cannot use this command outside of a server!")
 
         elif isinstance(error, errors.missingStaffRoleOrPerms):
-            msg = f"You do not have at least the {error.modrole} role and thus cannot use this command"
+            msg = f"You do not have at least the {error.modrole} role"
             if error.perms:
                 msg += " or the following permissions: "
                 for perm in error.perms:
                     msg += f"`{perm}` "
+            msg += " and thus cannot use this command."
             await ctx.send(msg)
 
         elif isinstance(error, errors.noStaffRolesSaved):

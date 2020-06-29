@@ -1,10 +1,12 @@
 import discord
 from discord.ext import commands, menus
 import json
-from utils import checks
+from utils import checks, paginator
 import webcolors
 import typing
-from  discord.utils import escape_mentions
+import io
+from discord.utils import escape_mentions
+
 
 # TODO modularize
 
@@ -50,11 +52,13 @@ class Colors(commands.Cog):
             await member.guild.owner.send(
                 "Your server has reached over 100 members, I have switched your color role mode to communal. I recommend setting up communal color roles with <this command> and making an announcement.")
 
-        if (await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", member.guild.id)) == 'personal':
+        if (
+                await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1",
+                                           member.guild.id)) == 'personal':
             try:
                 roleid = (json.loads(
                     await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
-                                        str(member.id), member.guild.id)))['roleid']
+                                               str(member.id), member.guild.id)))['roleid']
                 role = member.guild.get_role(roleid)
                 await member.add_roles(role)
             except TypeError:
@@ -69,9 +73,16 @@ class Colors(commands.Cog):
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @communalcolors.command()
-    async def add(self, ctx, keyword, role: typing.Union[discord.Role, str], colorhex: str):
+    async def add(self, ctx, keyword, role: typing.Union[discord.Role, str], colorhex: str = None):
         """Sets a color role, adds one if it doesnt exist (Requires you to be able to manage roles)"""
-        keyword =  escape_mentions(keyword)
+        if isinstance(role, discord.Role):
+            colorhex = (str(hex(role.color.value)))[2:]
+
+        else:
+            if colorhex is None:
+                raise commands.MissingRequiredArgument
+
+        keyword = escape_mentions(keyword)
         if colorhex[0] != '#':
             colorhex = '#' + colorhex
 
@@ -105,7 +116,6 @@ class Colors(commands.Cog):
 
             await conn.execute(finalquery, keyword, rolejsonobj, ctx.guild.id)
         await ctx.send(f"Added communal color {keyword}")
-
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @communalcolors.command(aliases=['del'])
@@ -141,7 +151,7 @@ class Colors(commands.Cog):
         if not jsondata:
             return await ctx.send("No communal color roles found, add some with `.communalcolors add`")
         embed = discord.Embed(title=f"Communal Color roles for {ctx.guild.name}", colour=ctx.author.color.value)
-        rolestring = ""
+        colorlist = []
         deletedrole = False
         delrolestr = ""  # just make sure we dont get unbound errors
         for keyword, roledata in jsondata.items():
@@ -152,13 +162,21 @@ class Colors(commands.Cog):
                 delrolestr = f"- :warning: `{keyword}` has been deleted!\n"
                 continue
 
-            rolestring += f"- **__Color Hex:__** {roledata['colorhex']} **__Role Name:__** {role.name} **__Keyword:__** `{keyword}`\n"
+            colorlist.append(
+                f"- **__Color Hex:__** {roledata['colorhex']} **__Role Name:__** {role.name} **__Keyword:__** `{keyword}`\n")
 
-        embed.description = rolestring
         if deletedrole:
-            embed.add_field(name="**Deleted color roles!**",
-                            value=delrolestr + "\nPlease update these roles with `.communalcolors add` or remove them with `.communalcolors delete`")
-        await ctx.send(embed=embed)
+            delrolestr += "\nPlease update these roles with `communalcolors add` or remove them with `communalcolors delete`"
+            if len(delrolestr) >= 1250:
+                embed.add_field(name="**Deleted color roles!**",
+                                value="You have some deleted color roles, please see this file on which ones are deleted")
+                await ctx.send(file=discord.File(io.StringIO(delrolestr), filename="delete-colors.txt"))
+            else:
+                embed.add_field(name="**Deleted color roles!**",
+                                value=delrolestr)
+        pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(colorlist, per_page=6, embed=embed),
+                                           clear_reactions_after=True, check_embeds=True)
+        await pages.start(ctx)
 
     # personal role commands
     @commands.group(invoke_without_command=True, aliases=['personalrole', 'personalcolors'])
@@ -198,8 +216,9 @@ class Colors(commands.Cog):
     async def delmember(self, ctx, member: discord.Member):
         """Manually deletes a color role for a user (Requires you to be able to manage roles or Mod)"""
         async with self.bot.db.acquire() as conn:
-            dbentry = await conn.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id),
-                                    ctx.guild.id)
+            dbentry = await conn.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
+                                          str(member.id),
+                                          ctx.guild.id)
             if dbentry is None:
                 return await ctx.send("This member does not have a color role!")
             roleentry = json.loads(dbentry)
@@ -222,15 +241,56 @@ class Colors(commands.Cog):
 
                 await conn.execute(delquery, str(member.id), ctx.guild.id)
 
+    @personalcolor.command()
+    async def manualadd(self, ctx, role: discord.Role, member: discord.Member = None):
+        """Adds an already existing personal color to the database"""
+        if not member:
+            member = ctx.author
+        else:
+            if not await checks.nondeco_is_staff_or_perms(ctx, 'Mod', manage_roles=True):
+                return await ctx.send("You cannot add personal color roles to yourself if you are not a moderator")
+
+        if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id),
+                                ctx.guild.id):
+            return await ctx.send("You already have a color role saved! use `color` to update it!")
+
+        colorhex = (str(hex(role.color.value)))[2:]
+        if colorhex[0] != '#':
+            colorhex = '#' + colorhex
+
+        roledata = json.dumps({
+            'colorhex': colorhex,
+            'roleid': role.id
+        })
+        async with self.bot.db.acquire() as conn:
+            if await conn.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1",
+                                   ctx.guild.id) is None:
+                finalquery = "UPDATE colors SET personal_role_data = jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"
+
+            else:
+
+                finalquery = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
+
+            await conn.execute(finalquery, member.id, roledata, ctx.guild.id)
+        await ctx.send(
+            "Color role manually added, update it with `color` not your highest color role? run `color` to move it. if that still fails, ask a mod to move it for you.")
+        if role not in member.roles:
+            try:
+                await member.add_roles(role)
+            except discord.Forbidden:
+                await ctx.send("Cannot add roles, please check my permissions!")
+
     @personalcolor.command(aliases=['checkcolor', 'checkhex', 'getcolor', 'hex'])
     async def gethex(self, ctx, member: discord.Member = None):
         """Gets personal role color"""
         if member is None:
             member = ctx.author
-        jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id), ctx.guild.id)
+        jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
+                                              str(member.id), ctx.guild.id)
         if jsondata:
             hexcolor = json.loads(jsondata)['colorhex']
-            embed = discord.Embed(title=f"Role color hex for {member}", colour=discord.Color.from_rgb(*webcolors.hex_to_rgb(hexcolor)))
+            embed = discord.Embed(title=f"Role color hex for {member}",
+                                  colour=discord.Color.from_rgb(*webcolors.hex_to_rgb(hexcolor)))
             embed.description = hexcolor
             return await ctx.send(embed=embed)
         else:
@@ -281,24 +341,25 @@ class Colors(commands.Cog):
                 uroles = ctx.author.roles.copy()
                 uroles.reverse()
                 jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
-                                                str(ctx.author.id), ctx.guild.id)
+                                                      str(ctx.author.id), ctx.guild.id)
                 colorroleid = json.loads(jsondata)['roleid'] if jsondata is not None else None
-               # print(uroles)
+                # print(uroles)
                 for r in uroles:
                     if r.color.value != 0 and r.id != colorroleid:
-                       # print(f"r is {r.name}")
+                        # print(f"r is {r.name}")
                         highestcolorrole = r
                         moverole = True
                         break
-                #print(highestcolorrole.name)
-               # print(f"Move role: {moverole}")
+                # print(highestcolorrole.name)
+                # print(f"Move role: {moverole}")
                 if role is None:
                     # create role with user's name
                     try:
-                        role = await ctx.guild.create_role(name=ctx.author.name, color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)), reason=f"Color role for {ctx.author.name}")
+                        role = await ctx.guild.create_role(name=ctx.author.name, color=discord.Color.from_rgb(
+                            *webcolors.hex_to_rgb(newcolor)), reason=f"Color role for {ctx.author.name}")
                         if moverole:
                             await role.edit(position=highestcolorrole.position)
-                           # print(f"Moved color role to: {role.position}")
+                        # print(f"Moved color role to: {role.position}")
                         await ctx.author.add_roles(role)
                         await ctx.send("Role created and added it to you!")
                     except discord.Forbidden:
@@ -309,7 +370,7 @@ class Colors(commands.Cog):
                         await role.edit(name=ctx.author.name, position=highestcolorrole.position,
                                         color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)),
                                         reason=f"Color role for {ctx.author.name}")
-                        #print(f"Edited color role pos: {role.position}")
+                        # print(f"Edited color role pos: {role.position}")
                     except Exception:
                         try:
                             await role.edit(name=ctx.author.name,
@@ -317,10 +378,17 @@ class Colors(commands.Cog):
                                             reason=f"Color role for {ctx.author.name}")
                         except discord.Forbidden:
                             return await ctx.send("Could not update your roles, check my permissions!")
-                        #print("Role did not move!")
+                        # print("Role did not move!")
                         await ctx.send(
                             "I was unable to move your role as your highest color role, please check configurations, role hierarchies, and my permissions")
                     await ctx.send("Color updated!")
+
+                    if role not in ctx.author.roles:
+                        try:
+                            await ctx.author.add_roles(role)
+                        except discord.Forbidden:
+                            await ctx.send("Cannot add roles, please check my permissions!")
+
                 jsonobj = json.dumps({
                     'colorhex': newcolor,
                     'roleid': role.id
@@ -337,7 +405,8 @@ class Colors(commands.Cog):
             jsondata = json.loads(jsondata)
             newcolorrole = ctx.guild.get_role(jsondata['roleid'])
             if not newcolorrole:
-               return await ctx.send(f"Role does not exist, please re make it and add it to the bot, you can have the bot make it as well with `communalcolor add`. hexcolor for `{newcolor}` is `#{jsondata['colorhex']}")
+                return await ctx.send(
+                    f"Role does not exist, please re make it and add it to the bot, you can have the bot make it as well with `communalcolor add`. hexcolor for `{newcolor}` is `#{jsondata['colorhex']}")
 
             if newcolorrole in ctx.author.roles:
                 await ctx.author.remove_roles(newcolorrole)
@@ -359,7 +428,6 @@ class Colors(commands.Cog):
                         await ctx.author.remove_roles(role)
                 except Exception:
                     pass
-
 
     @commands.command(aliases=['curmode', 'curcolormode'])
     async def currentcolormode(self, ctx):

@@ -39,7 +39,8 @@ class missingStaffRoleOrPerms(commands.CommandError):
     def __init__(self, modrole, perms: list):
         self.modrole = modrole
         self.perms = perms
-        super().__init__(message=f"Command could not be ran because the user did not have the {modrole} or the following permissions: {perms}")
+        super().__init__(
+            message=f"Command could not be ran because the user did not have the {modrole} or the following permissions: {perms}")
 
 
 class noStaffRolesSaved(commands.CommandError):

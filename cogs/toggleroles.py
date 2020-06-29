@@ -3,7 +3,8 @@ from discord.ext import commands, menus
 from discord.utils import escape_mentions
 import json
 import typing
-from utils import checks
+import io
+from utils import checks, paginator
 
 # TODO modularize
 
@@ -21,8 +22,7 @@ class ToggleRoles(commands.Cog):
     async def togglerole(self, ctx, keyword: str = None):
         """Toggle a role!"""
         if keyword is None:
-            await self.listroles(ctx)
-            return
+            return await self.listroles(ctx)
 
         async with self.bot.db.acquire() as conn:
             jsonroleentry = await conn.fetchval("SELECT roles->>$1 FROM toggleroles WHERE guildid = $2", keyword,
@@ -35,7 +35,7 @@ class ToggleRoles(commands.Cog):
             role = ctx.guild.get_role(roleid)
             if not role:
                 return await ctx.send(
-                    "Role does not exist! Please have a staff member remake the role update the database with `.addtogglerole`")
+                    "Role does not exist! Please have a staff member remake the role update the database with `addtogglerole`")
 
             if role not in ctx.author.roles:
                 try:
@@ -54,9 +54,9 @@ class ToggleRoles(commands.Cog):
         """Lists a guild's toggleable roles"""
         roles = await self.getrolesfromdb(ctx.guild.id)
         if not roles:
-            return await ctx.send("No toggleable roles found, add some with `.addtogglerole`")
+            return await ctx.send("No toggleable roles found, add some with `addtogglerole`")
         embed = discord.Embed(title=f"Toggleable roles for {ctx.guild.name}", colour=ctx.author.color.value)
-        rolestring = ""
+        roleinfolist = []
         deletedrole = False
         delrolestr = ""  # just make sure we dont get unbound errors
         for keyword, roledata in roles.items():
@@ -68,13 +68,22 @@ class ToggleRoles(commands.Cog):
                 delrolestr = f"- :warning: `{escape_mentions(keyword)}` has been deleted!\n"
                 continue
 
-            rolestring += f"- {emoji} **__Role:__** {role.name} **__Description:__** {roledata['description']} **__Keyword:__** `{keyword}`\n"
+            roleinfolist.append(f"- {emoji} **__Role:__** {role.name} **__Description:__** {roledata['description']} **__Keyword:__** `{keyword}`\n")
 
-        embed.description = rolestring
         if deletedrole:
-            embed.add_field(name="**Deleted toggle roles!**",
-                            value=delrolestr + "\nPlease update these roles with `.addtogglerole` or deleted them with `.deltogglerole`")
-        await ctx.send(embed=embed)
+            delrolestr += "\nPlease update these roles with `addtogglerole` or deleted them with `deltogglerole`"
+            if len(delrolestr) >= 1250:
+                embed.add_field("**Deleted Toggle roles!**", value="You have deleted toggle roles, see this text file on which ones they are")
+                await ctx.send(file=discord.File(io.StringIO(delrolestr), filename='deleted-toggleroles.txt'))
+            else:
+                embed.add_field(name="**Deleted toggle roles!**",
+                                value=delrolestr)
+
+        pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(roleinfolist, per_page=8, embed=embed), clear_reactions_after=True, check_embeds=True)
+        await pages.start(ctx)
+
+
+        #await ctx.send(embed=embed)
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command()
@@ -126,7 +135,7 @@ class ToggleRoles(commands.Cog):
                 res, msg = await YesNoMenu("Ok, would you like to make it pingable?").prompt(ctx)
                 try:
                     role = await ctx.guild.create_role(reason="New toggleable role", name=role, mentionable=res)
-                    await msg.edit(content=f"New role created! Added role {escape_mentions(role.name)} under keyword {escape_mentions(keyword)} use `.togglerole {escape_mentions(keyword)}` to apply or remove it")
+                    await msg.edit(content=f"New role created! Added role {escape_mentions(role.name)} under keyword {escape_mentions(keyword)} use `togglerole {escape_mentions(keyword)}` to apply or remove it")
                     sendfinalmsg = False
                 except discord.Forbidden:
                     await msg.edit(content="Unable to create role due to lack of permissions!")
@@ -161,7 +170,7 @@ class ToggleRoles(commands.Cog):
 
             await conn.execute(query, keyword, jsonroleobj, ctx.guild.id)
             if sendfinalmsg:
-                await ctx.send(f"Added toggleable role {escape_mentions(role.name)} under keyword {escape_mentions(keyword)} use `.togglerole {escape_mentions(keyword)}` to apply or remove it")
+                await ctx.send(f"Added toggleable role {escape_mentions(role.name)} under keyword {escape_mentions(keyword)} use `togglerole {escape_mentions(keyword)}` to apply or remove it")
 
     # util functions
     async def setupdbguild(self, guildid):
