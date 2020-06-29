@@ -109,7 +109,7 @@ class Colors(commands.Cog):
             if currentcomcolors is None:
                 finalquery = "UPDATE colors SET communal_role_data = jsonb_build_object($1::TEXT, $2::jsonb) WHERE guildid = $3"
             else:
-                finalquery = "UPDATE colors SET communal_role_data = communal_role_data::jsonb || jsonb_build_object($1::TEXT, $2::jsonb) WHERE guildid = $3"""
+                finalquery = "UPDATE colors SET communal_role_data = communal_role_data::jsonb || jsonb_build_object($1::TEXT, $2::jsonb) WHERE guildid = $3"
                 # check for duplicate names
                 if keyword in currentcomcolors.keys():
                     return await ctx.send("Cannot duplicate color role keywords")
@@ -419,7 +419,6 @@ class Colors(commands.Cog):
 
             communalcolors = await self.getcommunalroles(ctx.guild)
             curcolor = set(communalcolors) & set(ctx.author.roles)
-            print(curcolor)
             # just in case, *1 color at a time*
             for rid in curcolor:
                 try:
