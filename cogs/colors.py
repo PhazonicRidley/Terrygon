@@ -211,10 +211,15 @@ class Colors(commands.Cog):
             await msg.edit(content="Cancelled")
             return
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True)
     @personalcolor.command()
-    async def delmember(self, ctx, member: discord.Member):
+    async def delmember(self, ctx, member: discord.Member = None):
         """Manually deletes a color role for a user (Requires you to be able to manage roles or Mod)"""
+        if member is None or member == ctx.author:
+            member = ctx.author
+        else:
+            if not await checks.nondeco_is_staff_or_perms(ctx, 'Mod', manage_roles=True) and member != ctx.author:
+                return await ctx.send("You cannot delete other people's color roles if you are not a mod")
+
         async with self.bot.db.acquire() as conn:
             dbentry = await conn.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
                                           str(member.id),
@@ -268,7 +273,7 @@ class Colors(commands.Cog):
 
             await conn.execute(finalquery, member.id, roledata, ctx.guild.id)
         await ctx.send(
-            "Color role manually added, update it with `color` not your highest color role? run `color` to move it. if that still fails, ask a mod to move it for you.")
+            "Color role manually added, update it with `color` not your highest color role? run `color` to move it.")
         if role not in member.roles:
             try:
                 await member.add_roles(role)
@@ -283,7 +288,7 @@ class Colors(commands.Cog):
         jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
                                               str(member.id), ctx.guild.id)
         if jsondata:
-            hexcolor = json.loads(jsondata)['colorhex']
+            hexcolor = str(json.loads(jsondata)['colorhex']).zfill(6)
             embed = discord.Embed(title=f"Role color hex for {member}",
                                   colour=discord.Color.from_rgb(*webcolors.hex_to_rgb(hexcolor)))
             embed.description = hexcolor
