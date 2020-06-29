@@ -241,15 +241,10 @@ class Colors(commands.Cog):
 
                 await conn.execute(delquery, str(member.id), ctx.guild.id)
 
+    @checks.is_staff_or_perms("Mod", manage_roles=True)
     @personalcolor.command()
-    async def manualadd(self, ctx, role: discord.Role, member: discord.Member = None):
-        """Adds an already existing personal color to the database"""
-        if not member:
-            member = ctx.author
-        else:
-            if not await checks.nondeco_is_staff_or_perms(ctx, 'Mod', manage_roles=True):
-                return await ctx.send("You cannot add personal color roles to yourself if you are not a moderator")
-
+    async def manualadd(self, ctx, role: discord.Role, member: discord.Member):
+        """Adds an already existing personal color to the database (Mod+ or manage_roles)"""
         if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id),
                                 ctx.guild.id):
             return await ctx.send("You already have a color role saved! use `color` to update it!")
