@@ -335,6 +335,7 @@ class Colors(commands.Cog):
                     role = None
 
                 # TODO refactor and rewrite at a later time
+
                 # get highest color role
                 highestcolorrole = ctx.guild.default_role
                 moverole = False
@@ -343,15 +344,13 @@ class Colors(commands.Cog):
                 jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
                                                       str(ctx.author.id), ctx.guild.id)
                 colorroleid = json.loads(jsondata)['roleid'] if jsondata is not None else None
-                # print(uroles)
                 for r in uroles:
-                    if r.color.value != 0 and r.id != colorroleid:
-                        # print(f"r is {r.name}")
+                    if r.color.value != 0:
+                        if r.id == colorroleid:
+                            break
                         highestcolorrole = r
                         moverole = True
                         break
-                # print(highestcolorrole.name)
-                # print(f"Move role: {moverole}")
                 if role is None:
                     # create role with user's name
                     try:
@@ -359,7 +358,6 @@ class Colors(commands.Cog):
                             *webcolors.hex_to_rgb(newcolor)), reason=f"Color role for {ctx.author.name}")
                         if moverole:
                             await role.edit(position=highestcolorrole.position)
-                        # print(f"Moved color role to: {role.position}")
                         await ctx.author.add_roles(role)
                         await ctx.send("Role created and added it to you!")
                     except discord.Forbidden:
@@ -367,20 +365,16 @@ class Colors(commands.Cog):
                 else:
                     # update existing role, move if needed
                     try:
-                        await role.edit(name=ctx.author.name, position=highestcolorrole.position,
-                                        color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)),
-                                        reason=f"Color role for {ctx.author.name}")
-                        # print(f"Edited color role pos: {role.position}")
-                    except Exception:
+                        await role.edit(name=ctx.author.name, color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)), reason=f"Color role for {ctx.author.name}")
+                    except discord.Forbidden:
+                        return await ctx.send("Unable to update role, check my permissions!")
+                    
+                    if moverole:
                         try:
-                            await role.edit(name=ctx.author.name,
-                                            color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)),
-                                            reason=f"Color role for {ctx.author.name}")
-                        except discord.Forbidden:
-                            return await ctx.send("Could not update your roles, check my permissions!")
-                        # print("Role did not move!")
-                        await ctx.send(
-                            "I was unable to move your role as your highest color role, please check configurations, role hierarchies, and my permissions")
+                            await role.edit(position=highestcolorrole.position)
+                        except discord.HTTPException:
+                            return await ctx.send("Color updated, but I was unable to move your role to the highest color")
+
                     await ctx.send("Color updated!")
 
                     if role not in ctx.author.roles:
