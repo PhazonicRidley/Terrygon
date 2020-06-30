@@ -111,3 +111,9 @@ CREATE SCHEMA IF NOT EXISTS terrygon AUTHORIZATION terrygon; -- Change this line
     userid BIGINT PRIMARY KEY,
     accounts jsonb
     );
+
+     -- for trusted users
+    CREATE TABLE IF NOT EXISTS trustedusers (
+        guildid BIGINT PRIMARY KEY,
+        trusteduid BIGINT[]
+    );
