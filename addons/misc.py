@@ -29,6 +29,22 @@ class Misc(commands.Cog):
 
         await ctx.send(f"{ctx.guild.name} has {ctx.guild.member_count - bots} members and {bots} bots")
 
+    @commands.guild_only()
+    @commands.command(aliases=['currentperms'])
+    async def currentpermissions(self, ctx):
+        """Lists the bot's current permissions"""
+        permnames = []
+        embed = discord.Embed(title=f"My permissions on {ctx.guild.name}", colour=ctx.me.color.value)
+        botperms = ctx.me.guild_permissions
+        for name, value in botperms:
+            name = name.replace('_', ' ').title()
+            if value:
+                permnames.append(name)
+
+        embed.add_field(name=f"Permission value: {botperms.value}", value=", ".join(permnames), inline=False)
+        embed.add_field(name="Highest role location", value=f"My highest role {ctx.me.top_role.name}, is in position {ctx.me.top_role.position} out of {len(ctx.guild.roles) - 1}", inline=False)
+        await ctx.send(embed=embed)
+
     @commands.command()
     async def ping(self, ctx):
         """Pong!"""
