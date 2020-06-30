@@ -172,6 +172,28 @@ class Setup(commands.Cog):
                                    ctx.guild.id)
                 await ctx.send("Join and leave logs are now on!")
                 await self.bot.discordLogger.togglelogsetup("set", "join leave logs", ctx.author, 'memberlogs')
+    
+    @checks.is_staff_or_perms("Owner", administrator=True)
+    @commands.guild_only()
+    @commands.command()
+    async def togglecoremessagelogs(self, ctx):
+        async with self.bot.db.acquire() as conn:
+            memberlogschannelid = await conn.fetchval("SELECT messagelogs FROM log_channels WHERE guildid =  $1",
+                                                      ctx.guild.id)
+            if memberlogschannelid is None:
+                await ctx.send("Message log channel not configured!")
+                return
+
+            if await conn.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildid = $1", ctx.guild.id):
+                await conn.execute("UPDATE guild_settings SET enableCoreMessageLogs = FALSE WHERE guildid = $1",
+                                   ctx.guild.id)
+                await ctx.send("Message edits and deletes are no longer logged!")
+                await self.bot.discordLogger.togglelogsetup("unset", "core message logs", ctx.author, 'messagelogs')
+            else:
+                await conn.execute("UPDATE guild_settings SET enableCoreMessageLogs = TRUE WHERE guildid = $1",
+                                   ctx.guild.id)
+                await ctx.send("Message edits and deletes are now being logged!")
+                await self.bot.discordLogger.togglelogsetup("set", "core message logs", ctx.author, 'messagelogs')
 
 
 def setup(bot):

@@ -239,7 +239,15 @@ class Logger():
             pass
 
     async def messageDeletion(self, logtype: str, message: discord.Message):
-        msg = f"{self.emotes[logtype]} **__Message Deleted:__** {message.author.name}#{message.author.discriminator} deleted their message in {message.channel.mention}\n{self.emotes['id']} User ID: {message.author.id}\n{self.emotes['message']} Message: `{message.content}`"
+        msg = f"{self.emotes[logtype]} **__Message Deleted:__** {message.author.name}#{message.author.discriminator} deleted their message in {message.channel.mention}\n{self.emotes['id']} User ID: {message.author.id}\n{self.emotes['message']} Content: ```{message.content}```"
+
+        try:
+            await self.dispatch("messagelogs", message.guild, logtype, msg)
+        except errors.loggingError:
+            pass
+    
+    async def messagepinned(self, logtype: str, pinner, message: discord.Message):
+        msg = f"{self.emotes[logtype]} **__Message {logtype.title()}ned__** {pinner} {logtype}ned a message to {message.channel.mention}\n{self.emotes['id']} User ID: {message.author.id}\n{self.emotes['message']} Content: ```{message.content}```\n:link: Link: https://discordapp.com/channels/{message.guild.id}/{message.channel.id}/{message.id}"
 
         try:
             await self.dispatch("messagelogs", message.guild, logtype, msg)

@@ -62,7 +62,11 @@ async def nondeco_is_staff_or_perms(ctx, minStaffRole, **perms) -> bool:
 
     # get global perms for the user
     permissions = ctx.author.guild_permissions
-    missing = [perm for perm, value in perms.items() if getattr(permissions, perm, None) != value]
+    missing = []
+    if not perms:
+        missing = ['no perms given']
+    else:
+        missing = [perm for perm, value in perms.items() if getattr(permissions, perm, None) != value]
 
     # check for staff
     checkroles = ['mod', 'admin', 'owner']
@@ -86,6 +90,18 @@ async def nondeco_is_staff_or_perms(ctx, minStaffRole, **perms) -> bool:
     else:
         return False
 
+def is_trusted_or_perms(**perms):
+    async def wrapper(ctx):
+        if await nondeco_is_staff_or_perms(ctx, 'Mod', **perms):
+            return True
+        
+        async with ctx.bot.db.acquire() as conn:
+            if ctx.author.id in await conn.fetchval("SELECT trusteduid FROM trustedusers WHERE guildid = $1", ctx.guild.id):
+                return True
+            else:
+                raise errors.untrustedError()
+        
+    return commands.check(wrapper)
 
 def is_bot_owner():
     async def wrapper(ctx):

@@ -73,8 +73,10 @@ class Terrygon(commands.Bot):
         elif isinstance(error, commands.CommandInvokeError) and isinstance(error.original, discord.Forbidden):
             await ctx.send("Help me help you! I cannot do part of my functionality because you wont let me!")
 
-        elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument)):
-            await ctx.send("Improper usage")
+        elif isinstance(error, commands.CommandInvokeError) and isinstance(error.original, discord.HTTPException):
+            await ctx.send("Message is to big to send!")
+            
+        elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument, commands.TooManyArguments)):
             await ctx.send_help(ctx.command)
 
         elif isinstance(error, commands.errors.CommandOnCooldown):
@@ -100,6 +102,9 @@ class Terrygon(commands.Bot):
 
         elif isinstance(error, errors.botOwnerError):
             await ctx.send("You cannot use this as you are not a bot owner")
+        
+        elif isinstance(error, errors.untrustedError):
+            await ctx.send("You are not a trusted user or a staff member and thus cannot use this!")
 
         else:
             await ctx.send(f"An error occurred while processing the `{ctx.command.name}` command.")

@@ -31,7 +31,7 @@ class Events(commands.Cog):
 
     async def addGuild(self, newGuild):
         async with self.bot.db.acquire() as conn:
-            schemalist = ['log_channels', 'roles', 'guild_settings']
+            schemalist = ['log_channels', 'roles', 'guild_settings', 'trustedusers']
             for table in schemalist:
                 try:
                     await conn.execute(f"INSERT INTO {table} (guildid) VALUES ($1)", newGuild.id)
@@ -114,9 +114,8 @@ class Events(commands.Cog):
         if not await self.bot.isLogRegistered(member.guild, "memberlogs"):
             return
 
-        async with self.bot.db.acquire() as conn:
-            if (await conn.fetchrow("SELECT enableJoinLeaveLogs FROM guild_settings WHERE guildID = $1", member.guild.id))[0]:
-                await self.bot.discordLogger.joinleaveLogs("left", member)
+        if await self.bot.db.fetchval("SELECT enableJoinLeaveLogs FROM guild_settings WHERE guildID = $1", member.guild.id):
+            await self.bot.discordLogger.joinleaveLogs("left", member)
 
     # message logs
     @commands.Cog.listener()
@@ -129,15 +128,17 @@ class Events(commands.Cog):
 
         if after.author.bot:
             return
-
-        await self.bot.discordLogger.messageEditLogs("msgedit", before, after)
+    
+        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1", after.guild.id):
+            await self.bot.discordLogger.messageEditLogs("msgedit", before, after)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         if not await self.bot.isLogRegistered(message.guild, "messagelogs"):
             return
 
-        await self.bot.discordLogger.messageDeletion("mdelete", message)
+        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1", message.guild.id):
+            await self.bot.discordLogger.messageDeletion("mdelete", message)
 
     @commands.Cog.listener()
     async def on_guild_join(self, newGuild):
