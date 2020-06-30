@@ -16,7 +16,7 @@ class Trusted(commands.Cog):
         return await self.bot.db.fetchval("SELECT trusteduid FROM trustedusers WHERE guildid = $1", guildid)
     
     @commands.guild_only()
-    @commands.command()
+    @commands.command(aliases=['trustlist'])
     async def listtrusted(self, ctx):
         """Lists a guild's trusted users"""
 
@@ -85,6 +85,9 @@ class Trusted(commands.Cog):
             await message.pin()
         except discord.Forbidden:
             return await ctx.send("I do not have permission to pin messages!")
+
+        except discord.HTTPException:
+            return await ctx.send("This channel has 50 pinned messages, please remove one before adding more")
         
         await self.bot.discordLogger.messagepinned('pin', ctx.author, message)
             

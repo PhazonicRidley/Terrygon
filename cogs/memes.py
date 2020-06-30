@@ -37,18 +37,19 @@ class Memes(commands.Cog):
 
             return await ctx.send(meme)
 
-    @checks.is_staff_or_perms('Mod', manage_messages=True)
+    @checks.is_trusted_or_perms(manage_messages=True)
     @commands.command()
     async def addmeme(self, ctx, name, *, memeContent):
-        """Adds a meme to the bot (Mod+ only)"""
+        """Adds a guild meme to the bot (Trusted+ only)"""
 
         await self.setupdbguild(ctx.guild.id)
         await self.addmemedb(escape_mentions(name), escape_mentions(memeContent), ctx.guild.id)
         await ctx.send("Added meme")
 
-    @checks.is_staff_or_perms('Mod', manage_messages=True)
+    @checks.is_trusted_or_perms(manage_messages=True)
     @commands.command()
     async def delmeme(self, ctx, memename: str):
+        """Removes a guild meme from the bot (Trusted+ only)"""
         await self.setupdbguild(ctx.guild.id)
         await ctx.send(await self.delmemedb(memename, ctx.guild.id))
 
@@ -91,6 +92,48 @@ class Memes(commands.Cog):
         #await self.setupdbguild(0)
         await ctx.send(await self.delmemedb(memename, 0))
 
+        # move to memes eventuallyTM
+    @commands.command()
+    async def bean(self, ctx, member: discord.Member = None):
+        """Beans a member."""
+        if member is None:
+            member = ctx.author
+
+        await ctx.send(f"I've beaned {member}. <a:abeanhammer:511352809245900810>")
+
+    @commands.command()
+    async def kicc(self, ctx, member: discord.Member = None):
+        """Moots a user. """
+        if member is None:
+            member = ctx.author
+
+        await ctx.send(f"I've kicced {member}")
+
+    @commands.command()
+    async def moot(self, ctx, member: discord.Member = None):
+        """Moots a user. """
+        if member is None:
+            member = ctx.author
+
+        await ctx.send(f"{member} can no longer speak!")
+
+    @commands.command()
+    async def unmoot(self, ctx, member: discord.Member = None):
+        """unmoots a user."""
+        if member is None:
+            member = ctx.author
+
+        await ctx.send(f"{member} is no longer mooted!")
+
+    @commands.command()
+    async def warm(self, ctx, member: discord.Member = None):
+        """
+        Woah, toasty!
+        """
+        if member is None:
+            member = ctx.author
+
+        await ctx.send(f"🚩 I've warmed {member}.")
     # util functions
     # saving this just in case, it works, just not being used so commented
     """async def isimagevideo(self, url):

@@ -102,49 +102,6 @@ class Misc(commands.Cog):
         embed.set_image(url=user.avatar_url)
         await ctx.send(embed=embed)
 
-    # move to memes eventuallyTM
-    @commands.command()
-    async def bean(self, ctx, member: discord.Member = None):
-        """Beans a member."""
-        if member is None:
-            member = ctx.author
-
-        await ctx.send(f"I've beaned {member}. <a:abeanhammer:511352809245900810>")
-
-    @commands.command()
-    async def kicc(self, ctx, member: discord.Member = None):
-        """Moots a user. """
-        if member is None:
-            member = ctx.author
-
-        await ctx.send(f"I've kicced {member}")
-
-    @commands.command()
-    async def moot(self, ctx, member: discord.Member = None):
-        """Moots a user. """
-        if member is None:
-            member = ctx.author
-
-        await ctx.send(f"{member} can no longer speak!")
-
-    @commands.command()
-    async def unmoot(self, ctx, member: discord.Member = None):
-        """unmoots a user."""
-        if member is None:
-            member = ctx.author
-
-        await ctx.send(f"{member} is no longer mooted!")
-
-    @commands.command()
-    async def warm(self, ctx, member: discord.Member = None):
-        """
-        Woah, toasty!
-        """
-        if member is None:
-            member = ctx.author
-
-        await ctx.send(f"🚩 I've warmed {member}.")
-
     @commands.command()
     async def about(self, ctx):
         """Info about the bot"""
