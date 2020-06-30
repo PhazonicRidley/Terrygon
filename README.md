@@ -34,14 +34,13 @@ Also, its 2 am while I write this so probably best to just ignore everything in 
 Uh well docker image soonTM. In the mean time:
 
 1. Install Python 3.7+ and postgresql 12.
-2. Create a postgres user (By default the schema expects a user called `bot` if you do not use that name,
-3. change the first line in schema.sql)
-4. Run `python -m pip install --upgrade pip` and then `python -m pip install -r requirements.txt`.
-5. Next, run `cp config.yml.example config.yml` if you are on linux or macos, `copy config.yml.example config.yml` if you are on windows.
-6. Edit the `config.yml` fields with your information. Each field is labled on what it does, if you need help making a bot token, you can check [here](https://tinyurl.com/yad4qmz3) for instructions on making it and adding it to your server.
-7. Change the paths in `terrygon.service` for where your bot files will be.
-8. Copy `terrygon.service` to `~/.config/systemd/user`.
-9. Run commands `systemd --user daemon-reload` and then finally `systemd --user start terrygon.service`. You may also choose to enable this at start up.
+2. Create a postgres user (By default the schema expects a user called `bot` if you do not use that name, change the first line in schema.sql)
+3. Run `python -m pip install --upgrade pip` and then `python -m pip install -r requirements.txt`.
+4. Next, run `cp config.yml.example config.yml` if you are on linux or macos, `copy config.yml.example config.yml` if you are on windows.
+5. Edit the `config.yml` fields with your information. Each field is labled on what it does, if you need help making a bot token, you can check [here](https://tinyurl.com/yad4qmz3) for instructions on making it and adding it to your server.
+6. Change the paths in `terrygon.service` for where your bot files will be.
+7. Copy `terrygon.service` to `~/.config/systemd/user`.
+8. Run commands `systemd --user daemon-reload` and then finally `systemd --user start terrygon.service`. You may also choose to enable this at start up.
 
 ## Requirements
 - Python 3.7 or later
