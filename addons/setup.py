@@ -110,20 +110,20 @@ class Setup(commands.Cog):
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.group(invoke_without_command=True)
     async def logchannel(self, ctx):
-        """"To add a logchannel to the database (and to enable logging) please use [p]logchannel <set|unset> <type of log you wish to set> <channel>. valid channel options are:"""
+        """"To add a logchannel to the database (and to enable logging) please use [p]logchannel <set|unset> <type of log you wish to set> <channel>. valid channel options are: `modlogs`, `memberlogs`, `messagelogs` """
         await ctx.send_help(ctx.command)
 
     @logchannel.command(aliases=['set'])
     async def channelset(self, ctx, channeltype, channel: discord.TextChannel):
         if channeltype.lower() not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
-            await ctx.send("Invalid log type. valid options are: `modlogs`, `messagelogs`, `memberlogs`, `auditlogs`")
+            await ctx.send("Invalid log type. valid options are: `modlogs`, `messagelogs`, `memberlogs`")
         else:
             await self.setunsetchannels(ctx, channel, channeltype, 'set')
 
     @logchannel.command(aliases=['unset'])
     async def channelunset(self, ctx, channeltype):
         if channeltype.lower() not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
-            await ctx.send("Invalid log type. valid options are: `modlogs`, `messagelogs`, `memberlogs`, `auditlogs`")
+            await ctx.send("Invalid log type. valid options are: `modlogs`, `messagelogs`, `memberlogs`")
         else:
             await self.setunsetchannels(ctx, None, channeltype, 'unset')
 
@@ -132,7 +132,7 @@ class Setup(commands.Cog):
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.group(invoke_without_command=True)
     async def dbrole(self, ctx):
-        """To set or unset a role to the database as a staff role, please use [p]dbrole <set|unset> <type of staff role> <role>. valid options are:"""
+        """To set or unset a role to the database as a staff role, please use [p]dbrole <set|unset> <type of staff role> <role>. valid options are: `adminrole`, `approvedrole`, `modrole`, `mutedrole`, `ownerrole`"""
         await ctx.send_help(ctx.command)
 
     @dbrole.command(aliases=['set'])
