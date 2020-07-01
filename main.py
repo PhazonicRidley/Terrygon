@@ -70,12 +70,9 @@ class Terrygon(commands.Bot):
         if isinstance(error, (commands.errors.CommandNotFound, commands.errors.CheckFailure)):
             return
 
-        elif isinstance(error, commands.CommandInvokeError) and isinstance(error.original, discord.Forbidden):
-            await ctx.send("Help me help you! I cannot do part of my functionality because you wont let me!")
-
         elif isinstance(error, commands.CommandInvokeError) and isinstance(error.original, discord.HTTPException):
-            await ctx.send("Message is to big to send!")
-            
+            await ctx.send(f"An HTTP {error.original.status} has occurred for the following reason: `{error.original.text}`")
+
         elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument, commands.TooManyArguments)):
             await ctx.send_help(ctx.command)
 
