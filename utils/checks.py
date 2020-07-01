@@ -37,9 +37,9 @@ def is_staff_or_perms(minStaffRole: str, **perms):
             if checkroles.index(role) < checkroles.index(minStaffRole.lower()):
                 checkroles.remove(role)
 
-
-        staffroles = list(await ctx.bot.db.fetchrow("SELECT modRole, adminRole, ownerRole FROM roles WHERE guildID = $1",
-                                                  ctx.message.guild.id))
+        staffroles = list(
+            await ctx.bot.db.fetchrow("SELECT modRole, adminRole, ownerRole FROM roles WHERE guildID = $1",
+                                      ctx.message.guild.id))
 
         while len(checkroles) != len(staffroles):
             try:
@@ -76,7 +76,7 @@ async def nondeco_is_staff_or_perms(ctx, minStaffRole, **perms) -> bool:
 
     staffroles = list(
         await ctx.bot.db.fetchrow("SELECT modRole, adminRole, ownerRole FROM roles WHERE guildID = $1",
-                                      ctx.message.guild.id))
+                                  ctx.message.guild.id))
 
     while len(checkroles) != len(staffroles):
         try:
@@ -90,18 +90,21 @@ async def nondeco_is_staff_or_perms(ctx, minStaffRole, **perms) -> bool:
     else:
         return False
 
+
 def is_trusted_or_perms(**perms):
     async def wrapper(ctx):
         if await nondeco_is_staff_or_perms(ctx, 'Mod', **perms):
             return True
-        
+
         async with ctx.bot.db.acquire() as conn:
-            if ctx.author.id in await conn.fetchval("SELECT trusteduid FROM trustedusers WHERE guildid = $1", ctx.guild.id):
+            trustedusers = await conn.fetchval("SELECT trusteduid FROM trustedusers WHERE guildid = $1", ctx.guild.id)
+            if trustedusers and ctx.author.id in trustedusers:
                 return True
             else:
                 raise errors.untrustedError()
-        
+
     return commands.check(wrapper)
+
 
 def is_bot_owner():
     async def wrapper(ctx):
