@@ -3,6 +3,7 @@ from discord.ext import commands, menus
 import json
 from utils import checks, paginator
 import webcolors
+import re
 import typing
 import io
 from discord.utils import escape_mentions
@@ -250,11 +251,10 @@ class Colors(commands.Cog):
     @personalcolor.command()
     async def manualadd(self, ctx, role: discord.Role, member: discord.Member):
         """Adds an already existing personal color to the database (Mod+ or manage_roles)"""
-        if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id),
-                                ctx.guild.id):
+        if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id), ctx.guild.id):
             return await ctx.send("You already have a color role saved! use `color` to update it!")
 
-        colorhex = (str(hex(role.color.value)))[2:]
+        colorhex = (str(hex(role.color.value)))[2:].zfill(6)
         if colorhex[0] != '#':
             colorhex = '#' + colorhex
 
@@ -279,6 +279,18 @@ class Colors(commands.Cog):
                 await member.add_roles(role)
             except discord.Forbidden:
                 await ctx.send("Cannot add roles, please check my permissions!")
+
+    @checks.is_staff_or_perms("Owner", administrator=True)
+    @personalcolor.command()
+    async def manualaddall(self, ctx):
+        """Tries to add all existing personal color roles to the database, (Owners only or administrator perms)"""
+        for member in ctx.guild.members:
+            for role in member.roles:
+                if not member.bot and role.color.value != 0 and role.name.lower() in member.name.lower():
+                    await self.addpersonalcolorrole(ctx, role, member)
+
+        await ctx.send("All color personal color roles added to the bot's database!")
+
 
     @personalcolor.command(aliases=['checkcolor', 'checkhex', 'getcolor', 'hex'])
     async def gethex(self, ctx, member: discord.Member = None):
@@ -369,7 +381,7 @@ class Colors(commands.Cog):
                         await role.edit(name=ctx.author.name, color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)), reason=f"Color role for {ctx.author.name}")
                     except discord.Forbidden:
                         return await ctx.send("Unable to update role, check my permissions!")
-                    
+
                     if moverole:
                         try:
                             await role.edit(position=highestcolorrole.position)
@@ -457,6 +469,35 @@ class Colors(commands.Cog):
                 return await ctx.send(f"Color mode switched to {mode}")
 
     # util functions
+    async def addpersonalcolorrole(self, ctx: commands.Context, role: discord.Role, member: discord.Member):
+        if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id), ctx.guild.id):
+            return
+        colorhex = (str(hex(role.color.value)))[2:].zfill(6)
+
+        if colorhex[0] != '#':
+            colorhex = '#' + colorhex
+
+        roledata = json.dumps({
+            'colorhex': colorhex,
+            'roleid': role.id
+        })
+        async with self.bot.db.acquire() as conn:
+            if await conn.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1",
+                                   ctx.guild.id) is None:
+                finalquery = "UPDATE colors SET personal_role_data = jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"
+
+            else:
+
+                finalquery = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
+
+            await conn.execute(finalquery, member.id, roledata, ctx.guild.id)
+
+        if role not in member.roles:
+            try:
+                await member.add_roles(role)
+            except discord.Forbidden:
+                pass
+
     async def setupdbguild(self, guildid):
         """Adds a json config for a guild to store toggleable roles in"""
         async with self.bot.db.acquire() as conn:
