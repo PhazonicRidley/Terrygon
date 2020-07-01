@@ -24,15 +24,15 @@ class Memes(commands.Cog):
         self.bot = bot
 
     @commands.guild_only()
-    @commands.command()
-    async def meme(self, ctx, memeName: str, globforce: str = None):
-        """Posts a meme post global as your final arg if you want to force a global meme, guild memes take priority"""
+    @commands.command(aliases=['m', 'M'])
+    async def meme(self, ctx, memeName: str, globalMeme: str = None):
+        """Posts a meme add "global" as your final arg if you want to force a global meme, guild memes take priority"""
         async with self.bot.db.acquire() as conn:
             if not await conn.fetchval("SELECT guildmemes->$1 FROM memes WHERE guildid = $2", memeName, ctx.guild.id) and not await conn.fetchval("SELECT guildmemes->$1 FROM memes WHERE guildid = 0", memeName):
                 return await ctx.send("Meme not found in database for this server or globally!")
 
             meme = await conn.fetchval("SELECT guildmemes->>$1 FROM memes WHERE guildid = $2", memeName, ctx.guild.id)
-            if not meme or globforce:
+            if not meme or globalMeme:
                 meme = await conn.fetchval("SELECT guildmemes->>$1 FROM memes WHERE guildid = 0", memeName)
 
             return await ctx.send(meme)

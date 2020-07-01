@@ -3,6 +3,7 @@
 *.json
 *.sql
 *.log
+logs
 *.pyc
 .DS_Store
 .idea
