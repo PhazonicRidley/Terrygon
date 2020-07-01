@@ -130,7 +130,7 @@ class Setup(commands.Cog):
     # roles
 
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @commands.group(invoke_without_command=True)
+    @commands.group(invoke_without_command=True, aliases=['serverrole'])
     async def dbrole(self, ctx):
         """To set or unset a role to the database as a staff role, please use [p]dbrole <set|unset> <type of staff role> <role>. valid options are: `adminrole`, `approvedrole`, `modrole`, `mutedrole`, `ownerrole`"""
         await ctx.send_help(ctx.command)
