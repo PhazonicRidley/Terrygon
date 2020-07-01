@@ -307,7 +307,8 @@ class Colors(commands.Cog):
         Communal color mode: Argument is the keyword of the color role you want. If you would to remove your color role, specify the color you already have.
         """
         curmode = await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", ctx.guild.id)
-
+        if curmode == "disabled":
+            return await ctx.send("Color roles are disabled on this server")
         if curmode == 'personal':
             # sets hex up and stops invalid entries
 
@@ -429,16 +430,21 @@ class Colors(commands.Cog):
 
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.command()
-    async def switchcolormode(self, ctx):
+    async def switchcolormode(self, ctx, mode):
         async with self.bot.db.acquire() as conn:
-            modes = ('communal', 'personal')
+            modes = ('communal', 'personal', 'disabled')
             curmode = await conn.fetchval("SELECT colormode FROM colors WHERE guildid = $1", ctx.guild.id)
             updatequery = "UPDATE colors SET colormode = $1 WHERE guildid = $2"
-            if curmode not in modes:
-                return await ctx.send("Something went wrong!")  # just in case!
+            if mode not in modes:
+                return await ctx.send("Invalid color mode, current modes are `communal`, `personal`, or `disabled`")
+            elif curmode not in modes:
+                return await ctx.send("Invalid mode saved, please contact a bot owner")
+
+            elif mode == curmode:
+                return await ctx.send(f"The current color mode is already set to {curmode}")
 
             # switches mode to personal if server count is under 100 members
-            if curmode == modes[0]:
+            if mode == modes[1]:
                 if ctx.guild.member_count > 100:
                     return await ctx.send("You cannot have personal color roles, your server is too big!")
                 else:
@@ -447,8 +453,8 @@ class Colors(commands.Cog):
 
             # switches color mode to communal
             else:
-                await conn.execute(updatequery, modes[0], ctx.guild.id)
-                return await ctx.send(f"Color mode switched to {modes[0]}")
+                await conn.execute(updatequery, mode, ctx.guild.id)
+                return await ctx.send(f"Color mode switched to {mode}")
 
     # util functions
     async def setupdbguild(self, guildid):

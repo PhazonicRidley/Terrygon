@@ -101,7 +101,7 @@ CREATE SCHEMA IF NOT EXISTS terrygon AUTHORIZATION terrygon; -- Change this line
     -- for colors custom cog
     CREATE TABLE IF NOT EXISTS colors (
     guildid BIGINT PRIMARY KEY,
-    colormode VARCHAR(9) DEFAULT 'communal',
+    colormode VARCHAR(9) DEFAULT 'disabled',
     communal_role_data jsonb,
     personal_role_data jsonb
     );
