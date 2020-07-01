@@ -78,6 +78,9 @@ class Trusted(commands.Cog):
     @commands.command()
     async def pin(self, ctx, message: discord.Message):
         """Pins a message (Trusted+)"""
+        if message.guild != ctx.guild:
+            return await ctx.send("You cannot pin messages in other servers!")
+
         if message.pinned:
             return await ctx.send("Message has already been pinned")
 
@@ -95,6 +98,9 @@ class Trusted(commands.Cog):
     @commands.command()
     async def unpin(self, ctx, message: discord.Message):
         """Unpins a message (Trusted+)"""
+        if message.guild != ctx.guild:
+            return await ctx.send("You cannot unpin messages in other servers!")
+
         if not message.pinned:
             return await ctx.send("Message is not pinned")
         
