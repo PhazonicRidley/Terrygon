@@ -240,17 +240,18 @@ class Setup(commands.Cog):
     async def list(self, ctx):
         """List the guild's custom prefixes"""
         guildprefixes = await self.bot.db.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", ctx.guild.id)
+        embed = discord.Embed(title=f"Prefixes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
         if guildprefixes:
             prefixstr = ""
             for prefix in guildprefixes:
                 prefixstr += f"- `{prefix}`\n"
+            embed.set_footer(text=f"{len(guildprefixes)} custom guild prefixes saved" if len(guildprefixes) != 1 else "1 custom guild prefix saved")
+
         else:
             prefixstr = "No prefixes saved"
 
-        embed = discord.Embed(title=f"Prefixes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
         embed.description = prefixstr
         embed.add_field(name="Global default prefixes", value=f"- {ctx.me.mention}\n- `{self.bot.readConfig('default_prefix')}`", inline=False)
-        embed.set_footer(text=f"{len(guildprefixes)} custom guild prefixes saved" if len(guildprefixes) != 0 else "1 custom guild prefix saved")
         await ctx.send(embed=embed)
 
 
