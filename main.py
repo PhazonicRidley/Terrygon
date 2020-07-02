@@ -20,11 +20,21 @@ path = dirname(realpath(__file__))
 chdir(path)
 
 
+# modified from https://gitlab.com/lightning-bot/Lightning/-/blob/v3/lightning.py#L42 and https://github.com/Rapptz/RoboDanny/blob/rewrite/bot.py#L44
+async def _callable_prefix(bot, message):
+    default_prefix = bot.readConfig('default_prefix')
+    guildprefixes = await bot.db.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", message.guild.id)
+    if guildprefixes:
+        guildprefixes.append(default_prefix)
+        return commands.when_mentioned_or(*guildprefixes)(bot, message)
+    else:
+        return commands.when_mentioned_or(default_prefix)(bot, message)
+
 class Terrygon(commands.Bot):
     def __init__(self):
         loop = asyncio.get_event_loop()
         help_cmd = commands.MinimalHelpCommand(dm_help=None, dm_help_threshold=800)
-        super().__init__(command_prefix=self.readConfig('default_prefix'), description=self.readConfig("description"),
+        super().__init__(command_prefix=_callable_prefix, description=self.readConfig("description"),
                          max_messages=10000, help_command=help_cmd)
 
         self.db = loop.run_until_complete(self.create_pool(self.readConfig('db')))
@@ -63,7 +73,8 @@ class Terrygon(commands.Bot):
                                 format_exception(type(e), e, e.__traceback__))))
                         raise errors.sqlError("preparedb", format_exception(type(e), e, e.__traceback__))
             except FileNotFoundError:
-                print("schema file not found, please check your files, remember to rename schema.sql.example to schema.sql when you would like to use it")
+                print(
+                    "schema file not found, please check your files, remember to rename schema.sql.example to schema.sql when you would like to use it")
                 await self.logout()
 
     async def on_command_error(self, ctx, error):
@@ -71,9 +82,11 @@ class Terrygon(commands.Bot):
             return
 
         elif isinstance(error, commands.CommandInvokeError) and isinstance(error.original, discord.HTTPException):
-            await ctx.send(f"An HTTP {error.original.status} has occurred for the following reason: `{error.original.text}`")
+            await ctx.send(
+                f"An HTTP {error.original.status} has occurred for the following reason: `{error.original.text}`")
 
-        elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument, commands.TooManyArguments)):
+        elif isinstance(error, (
+        commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument, commands.TooManyArguments)):
             await ctx.send_help(ctx.command)
 
         elif isinstance(error, commands.errors.CommandOnCooldown):
@@ -99,7 +112,7 @@ class Terrygon(commands.Bot):
 
         elif isinstance(error, errors.botOwnerError):
             await ctx.send("You cannot use this as you are not a bot owner")
-        
+
         elif isinstance(error, errors.untrustedError):
             await ctx.send("You are not a trusted user or a staff member and thus cannot use this!")
 

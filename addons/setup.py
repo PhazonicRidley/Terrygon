@@ -1,6 +1,7 @@
 import discord
+import yaml
 from discord.ext import commands
-from utils import checks, errors
+from utils import checks, errors, common
 import typing
 import logzero
 from logzero import logger as consolelogger
@@ -172,7 +173,7 @@ class Setup(commands.Cog):
                                    ctx.guild.id)
                 await ctx.send("Join and leave logs are now on!")
                 await self.bot.discordLogger.togglelogsetup("set", "join leave logs", ctx.author, 'memberlogs')
-    
+
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
     @commands.command()
@@ -194,6 +195,75 @@ class Setup(commands.Cog):
                                    ctx.guild.id)
                 await ctx.send("Message edits and deletes are now being logged!")
                 await self.bot.discordLogger.togglelogsetup("set", "core message logs", ctx.author, 'messagelogs')
+
+    @commands.guild_only()
+    @commands.group(invoke_without_command=True)
+    async def prefix(self, ctx):
+        """Manage and list the guild's custom prefixes, by default the only avalable prefixes will be mentioning the bot or the global default prefix"""
+        await ctx.send_help(ctx.command)
+
+    @checks.is_staff_or_perms("Admin", manage_server=True)
+    @prefix.command()
+    async def add(self, ctx, newprefix):
+        """Adds a prefix to the bot for your guild (Admin+, or manage server) (No more than 10 per guild)"""
+        newprefix = discord.utils.escape_mentions(newprefix)  # ha ha no
+        async with self.bot.db.acquire() as conn:
+            guildprefixes = await conn.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", ctx.guild.id)
+            if guildprefixes is None:
+                guildprefixes = []
+
+            if newprefix not in guildprefixes and len(guildprefixes) < 10:
+                await conn.execute("UPDATE guild_settings SET prefixes = array_append(prefixes, $1) WHERE guildid = $2",
+                                   newprefix, ctx.guild.id)
+                return await ctx.send(f"Added prefix `{newprefix}` as a guild prefix")
+            else:
+                if len(guildprefixes) < 10:
+                    return await ctx.send("No more than 10 custom prefixes may be added!")
+                else:
+                    return await ctx.send("This prefix is already in the guild!")
+
+    @checks.is_staff_or_perms("Admin", manage_server=True)
+    @prefix.command(aliases=['del', 'delete'])
+    async def remove(self, ctx, prefix):
+        """Removes a prefix from the guild (Admin+, or manage_server)"""
+        async with self.bot.db.acquire() as conn:
+            guildprefixes = await conn.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", ctx.guild.id)
+            if not guildprefixes:
+                return await ctx.send("No custom guild prefixes saved!")
+            elif prefix not in guildprefixes:
+                return await ctx.send("This prefix is not saved to this guild!")
+            else:
+                await conn.execute("UPDATE guild_settings SET prefixes = array_remove(prefixes, $1) WHERE guildid = $2", prefix, ctx.guild.id)
+                await ctx.send("Prefix removed!")
+
+    @prefix.command()
+    async def list(self, ctx):
+        """List the guild's custom prefixes"""
+        guildprefixes = await self.bot.db.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", ctx.guild.id)
+        if guildprefixes:
+            prefixstr = ""
+            for prefix in guildprefixes:
+                prefixstr += f"- `{prefix}`\n"
+        else:
+            prefixstr = "No prefixes saved"
+
+        embed = discord.Embed(title=f"Prefixes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
+        embed.description = prefixstr
+        embed.add_field(name="Global default prefixes", value=f"- {ctx.me.mention}\n- `{self.bot.readConfig('default_prefix')}`", inline=False)
+        embed.set_footer(text=f"{len(guildprefixes)} custom guild prefixes saved" if len(guildprefixes) != 0 else "1 custom guild prefix saved")
+        await ctx.send(embed=embed)
+
+
+    @checks.is_bot_owner()
+    @commands.command()
+    async def switchdefaultprefix(self, ctx, prefix):
+        prefix = discord.utils.escape_mentions(prefix)
+        with open('config.yml', 'r+') as f:
+            config = yaml.safe_load(f)
+            config['default_prefix'] = prefix
+            yaml.dump(config, f)
+        await ctx.send("Changed default global prefix")
+
 
 
 def setup(bot):
