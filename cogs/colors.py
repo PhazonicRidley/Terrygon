@@ -260,7 +260,7 @@ class Colors(commands.Cog):
         successfuladds = []
         for member in ctx.guild.members:
             for role in member.roles:
-                if not member.bot and role.color.value != 0 and role.name.lower() in member.name.lower():
+                if not member.bot and (role.color.value != 0 and role.name.lower() in member.name.lower()) or (role.name == member.id):
                     if (await self.addpersonalcolorrole(ctx, role, member))[1] == 0:
                         successfuladds.append(f"`{member.name}`")
 
