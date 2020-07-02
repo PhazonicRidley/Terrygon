@@ -251,46 +251,23 @@ class Colors(commands.Cog):
     @personalcolor.command()
     async def manualadd(self, ctx, role: discord.Role, member: discord.Member):
         """Adds an already existing personal color to the database (Mod+ or manage_roles)"""
-        if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id), ctx.guild.id):
-            return await ctx.send("You already have a color role saved! use `color` to update it!")
-
-        colorhex = (str(hex(role.color.value)))[2:].zfill(6)
-        if colorhex[0] != '#':
-            colorhex = '#' + colorhex
-
-        roledata = json.dumps({
-            'colorhex': colorhex,
-            'roleid': role.id
-        })
-        async with self.bot.db.acquire() as conn:
-            if await conn.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1",
-                                   ctx.guild.id) is None:
-                finalquery = "UPDATE colors SET personal_role_data = jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"
-
-            else:
-
-                finalquery = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
-
-            await conn.execute(finalquery, member.id, roledata, ctx.guild.id)
-        await ctx.send(
-            "Color role manually added, update it with `color` not your highest color role? run `color` to move it.")
-        if role not in member.roles:
-            try:
-                await member.add_roles(role)
-            except discord.Forbidden:
-                await ctx.send("Cannot add roles, please check my permissions!")
+        await ctx.send((await self.addpersonalcolorrole(ctx, role, member))[0])
 
     @checks.is_staff_or_perms("Owner", administrator=True)
     @personalcolor.command()
     async def manualaddall(self, ctx):
         """Tries to add all existing personal color roles to the database, (Owners only or administrator perms)"""
+        successfuladds = []
         for member in ctx.guild.members:
             for role in member.roles:
                 if not member.bot and role.color.value != 0 and role.name.lower() in member.name.lower():
-                    await self.addpersonalcolorrole(ctx, role, member)
+                    if (await self.addpersonalcolorrole(ctx, role, member))[1] == 0:
+                        successfuladds.append(f"`{member.name}`")
 
-        await ctx.send("All color personal color roles added to the bot's database!")
-
+        embed = discord.Embed(color=ctx.me.color.value)
+        embed.add_field(name="Users that had their color roles added:", value=",".join(successfuladds) if len(successfuladds) != 0 else "No users added!")
+        embed.set_footer(text=f"{len(successfuladds)} personal color roles added to the database" if len(successfuladds) != 1 else f"{len(successfuladds)} personal color role added to the database")
+        await ctx.send(embed=embed)
 
     @personalcolor.command(aliases=['checkcolor', 'checkhex', 'getcolor', 'hex'])
     async def gethex(self, ctx, member: discord.Member = None):
@@ -378,7 +355,9 @@ class Colors(commands.Cog):
                 else:
                     # update existing role, move if needed
                     try:
-                        await role.edit(name=ctx.author.name, color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)), reason=f"Color role for {ctx.author.name}")
+                        await role.edit(name=ctx.author.name,
+                                        color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)),
+                                        reason=f"Color role for {ctx.author.name}")
                     except discord.Forbidden:
                         return await ctx.send("Unable to update role, check my permissions!")
 
@@ -386,7 +365,8 @@ class Colors(commands.Cog):
                         try:
                             await role.edit(position=highestcolorrole.position)
                         except discord.HTTPException:
-                            return await ctx.send("Color updated, but I was unable to move your role to the highest color")
+                            return await ctx.send(
+                                "Color updated, but I was unable to move your role to the highest color")
 
                     await ctx.send("Color updated!")
 
@@ -470,10 +450,11 @@ class Colors(commands.Cog):
 
     # util functions
     async def addpersonalcolorrole(self, ctx: commands.Context, role: discord.Role, member: discord.Member):
-        if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id), ctx.guild.id):
-            return
-        colorhex = (str(hex(role.color.value)))[2:].zfill(6)
+        if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id),
+                                      ctx.guild.id):
+            return "You already have a color role saved! use `color` to update it!", 1
 
+        colorhex = (str(hex(role.color.value)))[2:].zfill(6)
         if colorhex[0] != '#':
             colorhex = '#' + colorhex
 
@@ -491,12 +472,13 @@ class Colors(commands.Cog):
                 finalquery = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
 
             await conn.execute(finalquery, member.id, roledata, ctx.guild.id)
-
         if role not in member.roles:
             try:
                 await member.add_roles(role)
             except discord.Forbidden:
-                pass
+                return "Cannot add roles, please check my permissions!", 1
+
+        return "Color role manually added, update it with `color`. Run `color` if you need to move it to your highest colored role.", 0
 
     async def setupdbguild(self, guildid):
         """Adds a json config for a guild to store toggleable roles in"""

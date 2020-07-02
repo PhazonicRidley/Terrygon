@@ -1,5 +1,4 @@
 # meems
-# TODO write up docs on how to run this standalone
 import discord
 from discord.ext import commands
 from logzero import setup_logger
@@ -25,14 +24,14 @@ class Memes(commands.Cog):
 
     @commands.guild_only()
     @commands.command(aliases=['m', 'M'])
-    async def meme(self, ctx, memeName: str, globalMeme: str = None):
-        """Posts a meme add "global" as your final arg if you want to force a global meme, guild memes take priority"""
+    async def meme(self, ctx, memeName: str):
+        """Posts a saved meme, guild memes have priority"""
         async with self.bot.db.acquire() as conn:
             if not await conn.fetchval("SELECT guildmemes->$1 FROM memes WHERE guildid = $2", memeName, ctx.guild.id) and not await conn.fetchval("SELECT guildmemes->$1 FROM memes WHERE guildid = 0", memeName):
                 return await ctx.send("Meme not found in database for this server or globally!")
 
             meme = await conn.fetchval("SELECT guildmemes->>$1 FROM memes WHERE guildid = $2", memeName, ctx.guild.id)
-            if not meme or globalMeme:
+            if not meme:
                 meme = await conn.fetchval("SELECT guildmemes->>$1 FROM memes WHERE guildid = 0", memeName)
 
             return await ctx.send(meme)
