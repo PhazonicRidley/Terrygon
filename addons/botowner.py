@@ -1,3 +1,4 @@
+import sys
 from traceback import format_exception
 import discord
 from discord.ext import commands
@@ -177,6 +178,11 @@ class BotOwner(commands.Cog):
                     pass
             await self.bot.logout()
 
+    def nondaemonrestart(self):
+        """Restarts the bot without a daemon"""
+        print("Non-daemon restarting")
+        os.execl(sys.executable, 'python3', 'main.py', *sys.argv[1:])
+
     @checks.is_bot_owner()
     @commands.command()
     async def restart(self, ctx):
@@ -194,14 +200,15 @@ class BotOwner(commands.Cog):
         await asyncio.sleep(1)
 
         if platform.system() == 'Linux':
-            try:
                 await self.bot.logout()
-                os.system('systemctl --user restart terrygon.service') # TODO update name
-                await ctx.send("Restarted")
-            except Exception:
-                await ctx.send("Unable to restart bot! error with restarting via systemd")
+                if os.system('systemctl --user restart terrygon.service') == 0:
+                    return await ctx.send("Restarted")
+
+                else:
+                    self.nondaemonrestart()
+
         else:
-            await ctx.send("imagine not using linux as a server smh my head bro, support for non-linux is on the way")
+            self.nondaemonrestart()
 
 
 
@@ -211,7 +218,10 @@ class BotOwner(commands.Cog):
         """Run queries to the db (Bot Owner only)"""
         async with self.bot.db.acquire() as conn:
             try:
-                res = await conn.fetch(query)
+                if 'select' in query.lower():
+                    res = await conn.fetch(query)
+                else:
+                    res = await conn.execute(query)
                 if res is None:
                     return await ctx.send("Nothing found in database!")
                 try:
