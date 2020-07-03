@@ -142,7 +142,7 @@ class Logger():
         else:
             msg = f"{self.emotes['clear']} **__Cleared Warn__** {member.mention} | {member.name}#{member.discriminator} had warnid {warn.id} removed by {author.mention} | {author.name}#{author.discriminator}\n{self.emotes['id']} User ID: {member.id}"
             embed = discord.Embed(color=0xe6ff33)
-            embed.set_author(name=f"**Warn for {member.name}#{member.discriminator}:**", icon_url=member.avatar_url)
+            embed.set_author(name=f"{member}", icon_url=member.avatar_url)
             embed.add_field(name=f"\n\n{warn.time_stamp}",
                             value=f"{warn.reason if warn.reason is not None else 'No reason given for warn'}\n Issuer: {self.bot.get_user(warn.authorid) if self.bot.get_user(warn.authorid) is not None else self.bot.fetch_user(warn.authorid)}")
 

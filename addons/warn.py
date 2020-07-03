@@ -134,7 +134,7 @@ class Warn(commands.Cog):
 
     @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.guild_only()
-    @commands.command(aliases=["delwarn"], )
+    @commands.command(aliases=["delwarn", 'unwarn'])
     async def deletewarn(self, ctx, member: discord.Member, warnNum: int):
 
         """Removes a single warn (Staff only)"""
