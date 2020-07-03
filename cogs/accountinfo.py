@@ -31,7 +31,7 @@ class AccountInfo(commands.Cog):
             if await conn.fetchval("SELECT accounts FROM accountinfo WHERE userid = $1", ctx.author.id) is None:
                 finalquery = "UPDATE accountinfo SET accounts = jsonb_build_object($1::TEXT, $2::TEXT) WHERE userid = $3"
             else:
-                finalquery = "UPDATE accountinfo SET accounts = accounts::jsonb || jsonb_build_object($1::TEXT, $2::TEXT) WHERE userid = $3"""
+                finalquery = "UPDATE accountinfo SET accounts = accounts::jsonb || jsonb_build_object($1::TEXT, $2::TEXT) WHERE userid = $3"
 
             # TODO check for valid friend codes
             await conn.execute(finalquery, escape_mentions(acctype), escape_mentions(accdata), ctx.author.id)
