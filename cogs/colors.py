@@ -8,38 +8,8 @@ import typing
 import io
 from discord.utils import escape_mentions
 
-
-# TODO modularize
-
-class YesNoMenu(menus.Menu):
-
-    def __init__(self, initMsg):
-        super().__init__(timeout=30.0)
-        self.msg = initMsg
-        self.result = None
-
-    async def send_initial_message(self, ctx, channel):
-        return await channel.send(self.msg)
-
-    @menus.button('\N{WHITE HEAVY CHECK MARK}')
-    async def yes(self, payload):
-        self.result = True
-        await self.clear_buttons(react=True)
-        self.stop()
-
-    @menus.button('\N{CROSS MARK}')
-    async def no(self, payload):
-        self.result = False
-        await self.clear_buttons(react=True)
-        self.stop()
-
-    async def prompt(self, ctx):
-        await self.start(ctx, wait=True)
-        return self.result, self.message
-
-
 class Colors(commands.Cog):
-
+    """For handling user color modes in two different modes depending on the guild"""
     def __init__(self, bot):
         self.bot = bot
 
@@ -53,9 +23,7 @@ class Colors(commands.Cog):
             await member.guild.owner.send(
                 "Your server has reached over 100 members, I have switched your color role mode to communal. I recommend setting up communal color roles with <this command> and making an announcement.")
 
-        if (
-                await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1",
-                                           member.guild.id)) == 'personal':
+        if (await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", member.guild.id)) == 'personal':
             try:
                 roleid = (json.loads(
                     await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
@@ -66,7 +34,7 @@ class Colors(commands.Cog):
                 pass
 
     # communal roles commands
-    @commands.group(aliases=['communalcolor'], invoke_without_command=True)
+    @commands.group(aliases=['communalcolor', 'communalcolour'], invoke_without_command=True)
     @commands.guild_only()
     async def communalcolors(self, ctx):
         """Commands related to the communal color role system"""
@@ -131,7 +99,7 @@ class Colors(commands.Cog):
                     await conn.fetchval("SELECT communal_role_data->>$1 FROM colors WHERE guildid = $2", keyword,
                                         ctx.guild.id)))['roleid']
                 role = ctx.guild.get_role(roleid)
-                res, msg = await YesNoMenu("Do you want to delete the role?").prompt(ctx)
+                res, msg = await paginator.YesNoMenu("Do you want to delete the role?").prompt(ctx)
                 if role and res:
                     try:
                         await role.delete(reason="Deleted communal color role")
@@ -180,7 +148,7 @@ class Colors(commands.Cog):
         await pages.start(ctx)
 
     # personal role commands
-    @commands.group(invoke_without_command=True, aliases=['personalrole', 'personalcolors'])
+    @commands.group(invoke_without_command=True, aliases=['personalcolors', 'personalcolours', 'personalcolour'])
     @commands.guild_only()
     async def personalcolor(self, ctx):
         """Commands relating to the personal color role system (Only needed by servers with a personal color system)"""
@@ -190,7 +158,7 @@ class Colors(commands.Cog):
     @personalcolor.command()
     async def delall(self, ctx):
         """Manually remove all personal color roles (Requires Administrator or Owner)"""
-        res, msg = await YesNoMenu(
+        res, msg = await paginator.YesNoMenu(
             "Really delete all personalized color roles from server and the database? This action is irreversible").prompt(
             ctx)
         if res:
@@ -286,7 +254,7 @@ class Colors(commands.Cog):
             return await ctx.send("Member does not have role color saved!")
 
     @commands.guild_only()
-    @commands.command(aliases=['colorme', 'color'])
+    @commands.command(aliases=['colorme', 'color', 'colour'])
     async def switchrolecolor(self, ctx, newcolor):
         """
         Changes your color. provide hex for personal color or keyword for communal color role
@@ -294,6 +262,8 @@ class Colors(commands.Cog):
         Personal color mode: Argument is the color hex you would like to set your color role too. works with or without the # in the front. Will attempt to make it your highest colored role, run it again if it doesnt work right away
 
         Communal color mode: Argument is the keyword of the color role you want. If you would to remove your color role, specify the color you already have.
+
+        To find out which colormode the server is in. use [p]curcolormode
         """
         curmode = await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", ctx.guild.id)
         if curmode == "disabled":
@@ -324,15 +294,12 @@ class Colors(commands.Cog):
                 except TypeError:
                     role = None
 
-                # TODO refactor and rewrite at a later time
-
                 # get highest color role
                 highestcolorrole = ctx.guild.default_role
                 moverole = False
                 uroles = ctx.author.roles.copy()
                 uroles.reverse()
-                jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
-                                                      str(ctx.author.id), ctx.guild.id)
+                jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(ctx.author.id), ctx.guild.id)
                 colorroleid = json.loads(jsondata)['roleid'] if jsondata is not None else None
                 for r in uroles:
                     if r.color.value != 0:
@@ -414,9 +381,10 @@ class Colors(commands.Cog):
                         await ctx.author.remove_roles(role)
                 except Exception:
                     pass
-
+    
     @commands.command(aliases=['curmode', 'curcolormode'])
     async def currentcolormode(self, ctx):
+        """Shows current guild's color mode"""
         curmode = await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", ctx.guild.id)
         await ctx.send(f"{ctx.guild.name}'s current color role mode is {curmode.title()}")
 

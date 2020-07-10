@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import File
 from io import BytesIO
 
-
+# all credit for this goes to astronautlevel!
 class QRGen(commands.Cog):
     """
     Module for generating QR codes from attachments and URLs

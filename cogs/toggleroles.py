@@ -102,7 +102,7 @@ class ToggleRoles(commands.Cog):
                 await ctx.send("Role has been removed!")
 
         if role:
-            res, msg = await YesNoMenu(f"Would you like to delete the {role.name} role?").prompt(ctx)
+            res, msg = await paginator.YesNoMenu(f"Would you like to delete the {role.name} role?").prompt(ctx)
             if res:
                 try:
                     await msg.edit(content=f"{role.name} role deleted")
@@ -130,9 +130,9 @@ class ToggleRoles(commands.Cog):
         """
         sendfinalmsg = True
         if isinstance(role, str):
-            res, msg = await YesNoMenu(f"Would you like to create a role called {escape_mentions(role)}?").prompt(ctx)
+            res, msg = await paginator.YesNoMenu(f"Would you like to create a role called {escape_mentions(role)}?").prompt(ctx)
             if res:
-                res, msg = await YesNoMenu("Ok, would you like to make it pingable?").prompt(ctx)
+                res, msg = await paginator.YesNoMenu("Ok, would you like to make it pingable?").prompt(ctx)
                 try:
                     role = await ctx.guild.create_role(reason="New toggleable role", name=role, mentionable=res)
                     await msg.edit(content=f"New role created! Added role {escape_mentions(role.name)} under keyword {escape_mentions(keyword)} use `togglerole {escape_mentions(keyword)}` to apply or remove it")
@@ -183,35 +183,6 @@ class ToggleRoles(commands.Cog):
         """Gets a guild's saved toggleroles"""
         async with self.bot.db.acquire() as conn:
             return await conn.fetchval("SELECT roles FROM toggleroles WHERE guildid = $1", guildid)
-
-
-
-class YesNoMenu(menus.Menu):
-
-    def __init__(self, initMsg):
-        super().__init__(timeout=30.0)
-        self.msg = initMsg
-
-        self.result = None
-
-    async def send_initial_message(self, ctx, channel):
-        return await channel.send(self.msg)
-
-    @menus.button('\N{WHITE HEAVY CHECK MARK}')
-    async def on_thumbs_up(self, payload):
-        self.result = True
-        await self.clear_buttons(react=True)
-        self.stop()
-
-    @menus.button('\N{CROSS MARK}')
-    async def on_thumbs_down(self, payload):
-        self.result = False
-        await self.clear_buttons(react=True)
-        self.stop()
-
-    async def prompt(self, ctx):
-        await self.start(ctx, wait=True)
-        return self.result, self.message
 
 def setup(bot):
     bot.add_cog(ToggleRoles(bot))

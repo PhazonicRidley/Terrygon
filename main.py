@@ -23,6 +23,8 @@ chdir(path)
 # modified from https://gitlab.com/lightning-bot/Lightning/-/blob/v3/lightning.py#L42 and https://github.com/Rapptz/RoboDanny/blob/rewrite/bot.py#L44
 async def _callable_prefix(bot, message):
     default_prefix = bot.readConfig('default_prefix')
+    if message.guild is None:
+        return commands.when_mentioned_or(default_prefix)(bot, message)
     guildprefixes = await bot.db.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", message.guild.id)
     if guildprefixes:
         guildprefixes.append(default_prefix)
@@ -37,7 +39,11 @@ class Terrygon(commands.Bot):
         super().__init__(command_prefix=_callable_prefix, description=self.readConfig("description"),
                          max_messages=10000, help_command=help_cmd)
 
-        self.db = loop.run_until_complete(self.create_pool(self.readConfig('db')))
+        try:
+            self.db = loop.run_until_complete(self.create_pool(self.readConfig('db')))
+        except Exception:
+            print("Unable to connect to the postgresql database, please check your configuration!")
+            exit(1)
         consoleLogger.info("Database pool has started!")
         self.discordLogger = discordLogger.Logger(self)
         consoleLogger.info("Discord Logger has been configured")
@@ -126,7 +132,7 @@ class Terrygon(commands.Bot):
             errorlogs.info(f"COMMAND: {ctx.command.name}, GUILD: {ctx.guild.name} CHANNEL: {ctx.channel.name}")
             errorlogs.exception(logMsg + "".join(tb) + '\n\n')
             for errorchanid in self.readConfig('boterrchannelid'):
-                errchan = self.get_channel(errorchanid)
+                errchan = self.get_channel(int(errorchanid))
                 if errchan:
                     await errchan.send(logMsg + "\n```" + ''.join(tb) + "\n```")
                 else:
@@ -185,4 +191,7 @@ class Terrygon(commands.Bot):
 
 if __name__ == "__main__":
     bot = Terrygon()
-    bot.run(bot.readConfig("token"))
+    try:
+        bot.run(bot.readConfig("token"))
+    except Exception:
+        print("Unable to login as a bot, please check your configuration for the bot token")

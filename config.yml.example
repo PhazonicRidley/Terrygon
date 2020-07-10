@@ -13,7 +13,7 @@ db : postgres://username:password@domain:port
 
 # default used to execute bot commands
 
-default_prefix : '.'
+default_prefix : 'terry!'
 
 # Description of the bot
 
