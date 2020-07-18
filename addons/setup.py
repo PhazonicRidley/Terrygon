@@ -114,6 +114,7 @@ class Setup(commands.Cog):
         """"To add a logchannel to the database (and to enable logging) please use [p]logchannel <set|unset> <type of log you wish to set> <channel>. valid channel options are: `modlogs`, `memberlogs`, `messagelogs` """
         await ctx.send_help(ctx.command)
 
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @logchannel.command(aliases=['set'])
     async def channelset(self, ctx, channeltype, channel: discord.TextChannel):
         if channeltype.lower() not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
@@ -121,6 +122,7 @@ class Setup(commands.Cog):
         else:
             await self.setunsetchannels(ctx, channel, channeltype, 'set')
 
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @logchannel.command(aliases=['unset'])
     async def channelunset(self, ctx, channeltype):
         if channeltype.lower() not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
@@ -136,6 +138,8 @@ class Setup(commands.Cog):
         """To set or unset a role to the database as a staff role, please use [p]dbrole <set|unset> <type of staff role> <role>. valid options are: `adminrole`, `approvedrole`, `modrole`, `mutedrole`, `ownerrole`"""
         await ctx.send_help(ctx.command)
 
+
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @dbrole.command(aliases=['set'])
     async def roleset(self, ctx, roletype, role: discord.Role):
         if roletype.lower() not in ('adminrole', 'approvedrole', 'modrole', 'mutedrole', 'ownerrole'):
@@ -144,6 +148,7 @@ class Setup(commands.Cog):
         else:
             await self.setunsetrole(ctx, role, roletype, 'set')
 
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @dbrole.command(aliases=['unset'])
     async def roleunset(self, ctx, roletype):
         if roletype.lower() not in ('adminrole', 'approvedrole', 'modrole', 'mutedrole', 'ownerrole'):
