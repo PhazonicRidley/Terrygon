@@ -38,7 +38,7 @@ class Misc(commands.Cog):
             item = ctx.author
 
         permnames = []
-        embed = discord.Embed(title=f"Permissions on {ctx.guild.name} for {type(item).__name__.lower()} {item.name}", colour=ctx.me.color.value)
+        embed = discord.Embed(title=f"Permissions on {ctx.guild.name} for {type(item).__name__.lower()} {item.name}", colour=item.color.value)
         permlist = item.guild_permissions if isinstance(item, discord.Member) else item.permissions
         for name, value in permlist:
             name = name.replace('_', ' ').title()
