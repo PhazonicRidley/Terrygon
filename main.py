@@ -195,3 +195,4 @@ if __name__ == "__main__":
         bot.run(bot.readConfig("token"))
     except Exception:
         print("Unable to login as a bot, please check your configuration for the bot token")
+        exit(1)

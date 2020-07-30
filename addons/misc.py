@@ -32,18 +32,27 @@ class Misc(commands.Cog):
 
     @commands.guild_only()
     @commands.command(aliases=['currentperms'])
-    async def currentpermissions(self, ctx):
-        """Lists the bot's current permissions"""
+    async def currentpermissions(self, ctx, item : typing.Union[discord.Member, discord.Role] = None):
+        """Lists a user's or a role's current permissions"""
+        if item is None:
+            item = ctx.author
+
         permnames = []
-        embed = discord.Embed(title=f"My permissions on {ctx.guild.name}", colour=ctx.me.color.value)
-        botperms = ctx.me.guild_permissions
-        for name, value in botperms:
+        embed = discord.Embed(title=f"Permissions on {ctx.guild.name} for {type(item).__name__.lower()} {item.name}", colour=ctx.me.color.value)
+        permlist = item.guild_permissions if isinstance(item, discord.Member) else item.permissions
+        for name, value in permlist:
             name = name.replace('_', ' ').title()
             if value:
                 permnames.append(name)
 
-        embed.add_field(name=f"Permission value: {botperms.value}", value=", ".join(permnames), inline=False)
-        embed.add_field(name="Highest role location", value=f"My highest role {ctx.me.top_role.name}, is in position {ctx.me.top_role.position} out of {len(ctx.guild.roles) - 1}", inline=False)
+        if isinstance(item, discord.Member):
+            highestrolestr = f"The highest role for {item}, {item.top_role.name}, is in position {item.top_role.position} out of {len(ctx.guild.roles) - 1}"
+
+        else:
+            highestrolestr = f"This role is in position {item.position} out of {len(ctx.guild.roles) - 1}"
+
+        embed.add_field(name=f"Permission value: {permlist.value}", value=", ".join(permnames), inline=False)
+        embed.add_field(name="Highest role location", value=highestrolestr, inline=False)
         await ctx.send(embed=embed)
 
     @commands.command()
