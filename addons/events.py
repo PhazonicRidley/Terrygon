@@ -15,6 +15,14 @@ class Events(commands.Cog):
         self.bot = bot
 
     @commands.Cog.listener()
+    async def on_user_update(self, before, after):
+        if before.name != after.name:
+            await self.bot.discordLogger.memberUpdate("username", after, before.username, after.username)
+
+        if before.discriminator != after.discriminator:
+            await self.bot.discordLogger.memberUpdate("discriminator", after, before.discriminator, after.discriminator)
+
+    @commands.Cog.listener()
     async def on_member_update(self, before, after):
         # makes sure logging is set up
         if not await self.bot.isLogRegistered(after.guild, "memberlogs"):

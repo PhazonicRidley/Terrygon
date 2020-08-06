@@ -175,6 +175,10 @@ class Misc(commands.Cog):
             ownerrole = ctx.guild.get_role(
                 await conn.fetchval("SELECT ownerrole FROM roles WHERE guildid = $1", ctx.guild.id))
             ownerrole = "No Owner role set" if ownerrole is None else ownerrole
+
+            mutedrole = ctx.guild.get_role(
+                await conn.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id))
+            mutedrole = "No Muted role set" if mutedrole is None else ownerrole
             if approvalsystem == 'enabled':
                 approvalrole = ctx.guild.get_role(
                     await conn.fetchval("SELECT approvedrole FROM roles WHERE guildid = $1", ctx.guild.id))
@@ -182,8 +186,12 @@ class Misc(commands.Cog):
                 approvalrole = "Approval System Disabled"
 
         embed.add_field(name="**Role Info**",
-                        value=f":shield: **__Number Of Roles:__** {len(ctx.guild.roles)}\n:helicopter: **__Mod Role:__** {modrole}\n:hammer: **__Admin Role:__** {adminrole}\n:crown: **__Owner Role:__** {ownerrole}\n:+1: **__Approval Role:__** {approvalrole}",
+                        value=f":shield: **__Number Of Roles:__** {len(ctx.guild.roles)}\n:helicopter: **__Mod Role:__** {modrole}\n:hammer: **__Admin Role:__** {adminrole}\n:crown: **__Owner Role:__** {ownerrole}\n:+1: **__Approval Role:__** {approvalrole}\n:mute: **__Muted Role:__** {mutedrole}",
                         inline=False)
+
+        # channel info
+
+        embed.add_field(name="**Channel Info**", value=f":hash: **__Number of text channels:__** {len(ctx.guild.text_channels)}\n:loud_sound: **__Number of voice channels:__** {len(ctx.guild.voice_channels)}\n", inline=False)
 
         await ctx.send(embed=embed)
 

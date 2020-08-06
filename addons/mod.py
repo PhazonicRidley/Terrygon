@@ -103,32 +103,46 @@ class Mod(commands.Cog):
     @commands.command(aliases=['lock'], )
     async def lockdown(self, ctx, channel: discord.TextChannel = None, *, reason=None):
         """Locks a channel"""
-        async with self.bot.db.acquire() as conn:
-            if await conn.fetchval("SELECT approvalSystem FROM guild_settings WHERE guildID = $1", ctx.guild.id):
-                try:
-                    base_role = ctx.guild.get_role(
-                        await conn.fetchval("SELECT approvedRole FROM roles WHERE guildID = $1", ctx.guild.id))
-                except TypeError:
-                    modmoduleconsolelogger.warn(
-                        f"Unable to lock approval role on guild {ctx.guild.name}, it doesnt exist in the database! locking the default everyone role instead")
-                    self.bot.discordLogger.notice('notice', ctx.author,
-                                                  f"Unable to lock {ctx.channel.mention} for the approval role as it was not found in the database! locking the default everyone role instead")
-                    base_role = ctx.guild.default_role
-            else:
-                base_role = ctx.guild.default_role
-
+        staffRoles = await common.getStaffRoles(ctx)
         if channel is None:
             channel = ctx.channel
-
-        else:
+        elif channel.id != ctx.channel.id:
             await ctx.send(f"{self.bot.discordLogger.emotes['lock']} {channel.mention} has been locked.")
 
-        try:
+        # set staff roles and bot perms in place
+        for role in staffRoles:
+            if channel.overwrites_for(role).send_messages is False:
+                await channel.set_permissions(role, send_messages=True)
+        await channel.set_permissions(ctx.me, send_messages=True)
 
-            await channel.set_permissions(base_role, send_messages=False)
+        # iterate through all applied perms and set them accordingly
+        errorString = ""
+        for overwrite, permoverwriteobj in channel.overwrites.items():
+            if isinstance(overwrite, discord.Role):
+                if overwrite not in staffRoles:
+                    try:
+                        permoverwriteobj.send_messages = False
+                        permoverwriteobj.add_reactions = False
+                        await channel.set_permissions(overwrite, overwrite=permoverwriteobj)
+                    except discord.Forbidden:
+                        if not errorString:
+                            errorString = "I was unable to lock all the permissions in this channel!"
+                        continue
+            elif isinstance(overwrite, discord.Member):
+                if channel.overwrites_for(overwrite).send_messages and channel.permissions_for(
+                        overwrite).manage_channels is False and overwrite != ctx.me:
+                    permoverwriteobj.send_messages = False
+                    permoverwriteobj.add_reactions = False
+                    await channel.set_permissions(overwrite, overwrite=permoverwriteobj)
+                    if not errorString:
+                        errorString = "I was unable to lock all the permissions in this channel!"
+
+        try:
             chanmsg = f"{self.bot.discordLogger.emotes['lock']} Channel locked."
             if reason is not None:
                 chanmsg += f" The reason is `{reason}`"
+            if errorString:
+                chanmsg += f" But, {errorString}"
             await channel.send(chanmsg)
             await self.bot.discordLogger.modlogs(ctx, "lock", channel, ctx.author, reason)
 
@@ -139,36 +153,47 @@ class Mod(commands.Cog):
     @commands.command(aliases=['unlock'], )
     async def unlockdown(self, ctx, channel: discord.TextChannel = None):
         """Unlocks a channel"""
-        async with self.bot.db.acquire() as conn:
-            if await conn.fetchrow("SELECT approvalSystem FROM guild_settings WHERE guildID = $1", ctx.guild.id):
-                try:
-                    base_role = ctx.guild.get_role(
-                        await conn.fetchval("SELECT approvedRole FROM roles WHERE guildID = $1", ctx.guild.id))
-                except TypeError:
-                    modmoduleconsolelogger.warn(
-                        f"Unable to unlock approval role on guild {ctx.guild.name}, it doesnt exist in the database! unlocking the default everyone role instead")
-                    self.bot.discordLogger.notice('notice', ctx.author,
-                                                  f"Unable to unlock {ctx.channel.mention} for the approval role as it was not found in the database! unlocking the default everyone role instead")
-                    base_role = ctx.guild.default_role
-            else:
-                base_role = ctx.guild.default_role
 
+        staffRoles = await common.getStaffRoles(ctx)
         if channel is None:
             channel = ctx.channel
-            cmdinchan = True
-
         else:
-            cmdinchan = False
+            await ctx.send(f"{self.bot.discordLogger.emotes['unlock']} {channel.mention} has been unlocked.")
+
+        # set staff roles and bot perms in place
+        for role in staffRoles:
+            if channel.overwrites_for(role).send_messages is False:
+                await channel.set_permissions(role, send_messages=None)
+        await channel.set_permissions(ctx.me, send_messages=None)
+
+        # iterate through all applied perms and set them accordingly
+        errorString = ""
+        for overwrite, permoverwriteobj in channel.overwrites.items():
+            if isinstance(overwrite, discord.Role):
+                if overwrite not in staffRoles and overwrite.id != await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id):
+                    try:
+                        permoverwriteobj.send_messages = None
+                        permoverwriteobj.add_reactions = None
+                        await channel.set_permissions(overwrite, overwrite=permoverwriteobj)
+                    except discord.Forbidden:
+                        if not errorString:
+                            errorString = "I was unable to unlock all the permissions in this channel!"
+                        continue
+            elif isinstance(overwrite, discord.Member):
+                if channel.overwrites_for(overwrite).send_messages and channel.permissions_for(
+                        overwrite).manage_channels is False and overwrite != ctx.me:
+                    permoverwriteobj.send_messages = False
+                    permoverwriteobj.add_reactions = False
+                    await channel.set_permissions(overwrite, overwrite=permoverwriteobj)
+                    if not errorString:
+                        errorString = "I was unable to unlock all the permissions in this channel!"
 
         try:
-
-            await channel.set_permissions(base_role, send_messages=True)
             chanmsg = f"{self.bot.discordLogger.emotes['unlock']} Channel unlocked."
+            if errorString:
+                chanmsg += f" But, {errorString}"
             await channel.send(chanmsg)
-            await self.bot.discordLogger.modlogs(ctx, "unlock", channel, ctx.author, None)
-
-            if not cmdinchan:
-                await ctx.send(f"{self.bot.discordLogger.emotes['unlock']} {channel.mention} has been unlocked.")
+            await self.bot.discordLogger.modlogs(ctx, "unlock", channel, ctx.author)
 
         except discord.Forbidden:
             await ctx.send("I don't have permission to unlock channels!")
@@ -317,10 +342,9 @@ class Mod(commands.Cog):
 
         await self.bot.discordLogger.modlogs(ctx, 'clear', ctx.channel, ctx.author, reason, numofmessages=numOfMessages)
 
-
     @checks.is_staff_or_perms("Mod", manage_channels=True)
     @commands.command()
-    async def slowmode(self, ctx, channel: discord.TextChannel, slowtime, *, reason = None):
+    async def slowmode(self, ctx, channel: discord.TextChannel, slowtime, *, reason=None):
         """Slows a channel, set slowtime to 0 to disable (Mod+ or manage channels)"""
         slowtimeseconds = common.parse_time(slowtime)
         if slowtimeseconds == -1:
@@ -336,7 +360,6 @@ class Mod(commands.Cog):
             return await ctx.send("I don't have permission to update the slowmode delay")
 
         await self.bot.discordLogger.slowmodelog(channel, slowtime, ctx.author, reason)
-
 
 
 def setup(bot):

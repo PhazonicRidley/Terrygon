@@ -133,7 +133,7 @@ class Logger():
         try:
             await self.dispatch("modlogs", ctx.guild, logtype, msg)
         except errors.loggingError:
-            await ctx.send("Please configure logging for modlogs using `[p]logchannel set modlogs #<yourchannel>`")
+            pass
 
     async def warnclear(self, ctx, logtype, member: typing.Union[discord.Member, discord.User], author, warn=None):
         if warn is None:

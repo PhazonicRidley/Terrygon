@@ -24,13 +24,19 @@ class Approval(commands.Cog):
             status = await conn.fetchval("SELECT approvalSystem FROM guild_settings WHERE guildID = $1", ctx.guild.id)
             if status:
                 await conn.execute("UPDATE guild_settings SET approvalSystem = FALSE WHERE guildID = $1", ctx.guild.id)
-                await self.bot.discordLogger.togglelogsetup('unset', 'approval system', ctx.author, 'modlogs')
+                try:
+                    await self.bot.discordLogger.togglelogsetup('unset', 'approval system', ctx.author, 'modlogs')
+                except errors.loggingError:
+                    pass
                 await ctx.send("Approval system disabled")
 
             else:
                 await conn.execute("UPDATE guild_settings SET approvalSystem = TRUE WHERE guildID = $1", ctx.guild.id)
-                await self.bot.discordLogger.togglelogsetup('unset', 'approval system', ctx.author, 'modlogs')
-                await ctx.send("Approval system enabled! use .approve to let new members in")
+                try:
+                    await self.bot.discordLogger.togglelogsetup('set', 'approval system', ctx.author, 'modlogs')
+                except errors.loggingError:
+                    pass
+                await ctx.send("Approval system enabled! use approve to let new members in")
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.guild_only()
