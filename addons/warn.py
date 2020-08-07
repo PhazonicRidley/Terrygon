@@ -39,7 +39,9 @@ class Warn(commands.Cog):
 
         async with self.bot.db.acquire() as conn:
 
-            numOfWarns = int(await conn.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guildid = $2;", member.id, ctx.guild.id)) + 1
+            numOfWarns = int(
+                await conn.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guildid = $2;", member.id,
+                                    ctx.guild.id)) + 1
             if numOfWarns is None:
                 numOfWarns = 1
 
@@ -130,7 +132,10 @@ class Warn(commands.Cog):
             await member.ban(reason=f"Warn 5: `{reason}`")
 
         else:
-            await member.send(msg)
+            try:
+                await member.send(msg)
+            except Forbidden:
+                pass
 
     @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.guild_only()
@@ -230,7 +235,7 @@ class Warn(commands.Cog):
                 await ctx.send("No warns found")
 
             else:
-                await self.bot.discordLogger.warnclear(ctx,'clear', member, ctx.author)
+                await self.bot.discordLogger.warnclear(ctx, 'clear', member, ctx.author)
                 await conn.execute("DELETE FROM warns WHERE userID = $1 AND guildid = $2", member.id, ctx.guild.id)
                 await ctx.send(f"{numOfwarns} warns cleared from {member.name}")
 

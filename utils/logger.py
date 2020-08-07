@@ -79,8 +79,8 @@ class Logger():
 
             channelid = await conn.fetchval(query, guild.id)
             if channelid is None:
-               # consoleLogger.warning(f"{logtype} log failed! in {guild.name}, could not find {dbChan} log channel in database for this guild.\
-                       # probably no configuration for {dbChan} logs!")
+                # consoleLogger.warning(f"{logtype} log failed! in {guild.name}, could not find {dbChan} log channel in database for this guild.\
+                # probably no configuration for {dbChan} logs!")
                 raise errors.loggingError(logtype, guild)
 
             else:
@@ -105,7 +105,7 @@ class Logger():
 
         elif (
                 logtype == 'mute' or logtype == 'unmute' or logtype == 'approve' or logtype == 'unapprove') and isinstance(
-                target, discord.Member):
+            target, discord.Member):
             msg = f"{self.emotes[logtype]} **__User {logtype.title()}d:__** {author.mention} | {author.name}#{author.discriminator} {logtype}d {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
             if reason is not None:
                 msg += f"\n{self.emotes['reason']} Reason: {reason}"
@@ -151,7 +151,7 @@ class Logger():
         except errors.loggingError:
             await ctx.send("Please configure logging for modlogs using `[p]logchannel set modlogs #<yourchannel>`")
 
-    async def slowmodelog(self, channel: discord.TextChannel, time: str, author: discord.Member, reason = None):
+    async def slowmodelog(self, channel: discord.TextChannel, time: str, author: discord.Member, reason=None):
         """Slowmode logging"""
         msg = f"{self.emotes['slowmode']} **__Channel Slowed:__** {author.mention} | {channel} added a {time} delay to {channel.mention}\n{self.emotes['id']} Channel ID: {channel.id}"
         if reason:
@@ -183,8 +183,20 @@ class Logger():
         except errors.loggingError:
             pass
 
+    async def userUpdate(self, logtype, userbefore, userafter):
+        """User updates, agnostic to servers"""
+        msg = f"{self.emotes[logtype]} **__User Update:__** A user has updated their {logtype}: `{userbefore}` -> `{userafter}`!\n{self.emotes['id']} User ID: {userafter.id}\n"
+        for g in self.bot.guilds:
+            if userafter in g:
+                channel = g.get_channel(
+                    self.bot.db.fetchval("SELECT memberlogs FROM log_channels WHERE guildid = $1", g.id))
+                if not channel:
+                    continue
+                else:
+                    await channel.send(msg)
+
     async def memberUpdate(self, logtype, member, beforechange, afterchange):
-        msg = f"{self.emotes[logtype]} **__Member Update:__** {member.name}#{member.discriminator} had their {logtype} updated\n{self.emotes['id']} User ID: {member.id}\nChange: `{beforechange}` -> `{afterchange}`"
+        msg = f"{self.emotes[logtype]} **__Member Update:__** {member.name}#{member.discriminator}'s {logtype} was updated\n{self.emotes['id']} User ID: {member.id}\n{self.emotes['username']} Change: `{beforechange}` -> `{afterchange}`"
 
         try:
             await self.dispatch("memberlogs", member.guild, logtype, msg)
@@ -245,7 +257,7 @@ class Logger():
             await self.dispatch("messagelogs", message.guild, logtype, msg)
         except errors.loggingError:
             pass
-    
+
     async def messagepinned(self, logtype: str, pinner, message: discord.Message):
         msg = f"{self.emotes[logtype]} **__Message {logtype.title()}ned__** {pinner} {logtype}ned a message to {message.channel.mention}\n{self.emotes['id']} User ID: {message.author.id}\n{self.emotes['message']} Content: ```{message.content}```\n:link: Link: https://discordapp.com/channels/{message.guild.id}/{message.channel.id}/{message.id}"
 
