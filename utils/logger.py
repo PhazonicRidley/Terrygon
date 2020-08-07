@@ -183,9 +183,9 @@ class Logger():
         except errors.loggingError:
             pass
 
-    async def userUpdate(self, logtype, userbefore, userafter):
+    async def userUpdate(self, user, logtype, userbefore, userafter):
         """User updates, agnostic to servers"""
-        msg = f"{self.emotes[logtype]} **__User Update:__** A user has updated their {logtype}: `{userbefore}` -> `{userafter}`!\n{self.emotes['id']} User ID: {userafter.id}\n"
+        msg = f"{self.emotes[logtype]} **__User Update:__** A user has updated their {logtype}: `{userbefore}` -> `{userafter}`!\n{self.emotes['id']} User ID: {user}\n"
         for g in self.bot.guilds:
             if userafter in g:
                 channel = g.get_channel(

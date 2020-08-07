@@ -17,7 +17,7 @@ class Events(commands.Cog):
     @commands.Cog.listener()
     async def on_user_update(self, before, after):
         if before.name != after.name:
-            await self.bot.discordLogger.userUpdate("username", before.name, after.name)
+            await self.bot.discordLogger.userUpdate("username", after, before.name, after.name)
 
         if before.discriminator != after.discriminator:
             await self.bot.discordLogger.userUpdate("discriminator", before.discriminator, after.discriminator)
