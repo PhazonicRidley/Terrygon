@@ -174,9 +174,12 @@ class BotOwner(commands.Cog):
                 try:
                     await self.bot.logout()
                     os.system('systemctl --user stop terrygon.service') # TODO update name
+                    sys.exit(0)
+                    
                 except Exception:
                     pass
             await self.bot.logout()
+            sys.exit(0)
 
     def nondaemonrestart(self):
         """Restarts the bot without a daemon"""

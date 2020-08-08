@@ -134,7 +134,7 @@ class Misc(commands.Cog):
         await ctx.send("https://gitlab.com/PhazonicRidley/terrygon")
 
     @commands.guild_only()
-    @commands.command(aliases=['serverinfo'])
+    @commands.command(aliases=['serverinfo', 'server'])
     async def guildinfo(self, ctx):
         """Posts guild info"""
         embed = discord.Embed(title=f"**Server info for: {ctx.guild.name}**", colour=common.gen_color(ctx.guild.id))
@@ -178,7 +178,7 @@ class Misc(commands.Cog):
 
             mutedrole = ctx.guild.get_role(
                 await conn.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id))
-            mutedrole = "No Muted role set" if mutedrole is None else ownerrole
+            mutedrole = "No Muted role set" if mutedrole is None else mutedrole
             if approvalsystem == 'enabled':
                 approvalrole = ctx.guild.get_role(
                     await conn.fetchval("SELECT approvedrole FROM roles WHERE guildid = $1", ctx.guild.id))

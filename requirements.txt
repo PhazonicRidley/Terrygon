@@ -12,3 +12,4 @@ git+https://github.com/Rapptz/discord-ext-menus
 dpy-ui
 webcolors~=1.3
 jishaku
+discord-flags

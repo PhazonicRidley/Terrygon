@@ -1,6 +1,6 @@
 import discord
 import yaml
-from discord.ext import commands
+from discord.ext import commands, flags
 from utils import checks, errors, common
 import typing
 import logzero
@@ -39,24 +39,21 @@ class Setup(commands.Cog):
             if mode == 'unset':
                 roleid = await self.getdbasset(roletype, ctx.guild)
                 if roleid is None:
-                    await ctx.send(f"No {roletype} to unset!")
-                    return
+                    return -1
                 try:
                     await self.bot.discordLogger.logsetup("unset", f"{roletype} role", ctx.author,
                                                           ctx.guild.get_role(roleid), 'modlogs')
                 except errors.loggingError:
                     consolelogger.warning(f"Failed to log {roletype} database unset on server {ctx.guild.name}.")
                 await conn.execute(f"UPDATE roles SET {roletype} = NULL WHERE guildid = $1", ctx.guild.id)
-                await ctx.send(f"{roletype} role unset!".title())
+                return 0
 
             else:
                 # just in case!
                 if role is None:
-                    await ctx.send("Please enter a role to set")
-                    return
+                    return -1
 
                 await conn.execute(f"UPDATE roles SET {roletype} = $1 WHERE guildid = $2", role.id, ctx.guild.id)
-                await ctx.send(f"{roletype} role set!".title())
                 try:
                     await self.bot.discordLogger.logsetup("set", f"{roletype} role", ctx.author,
                                                           await self.getdbasset(roletype,
@@ -64,8 +61,11 @@ class Setup(commands.Cog):
                                                               role.id), 'modlogs')
                 except errors.loggingError:
                     consolelogger.warning(f"Failed to log {roletype} database set! on server {ctx.guild.name}")
+                
+                return 0
 
     async def setunsetchannels(self, ctx, channel: typing.Union[discord.TextChannel, None], channeltype, mode):
+        """Sets a log channel to the database, mode should be either `set` or `unset`"""
         if not isinstance(channel, discord.TextChannel) and channel is not None:
             await ctx.send("Invalid channel, does this channel exist?")
             return
@@ -74,12 +74,11 @@ class Setup(commands.Cog):
             raise commands.BadArgument("Invalid Database Channel")
 
         async with self.bot.db.acquire() as conn:
-            if mode == 'unset':
+            if mode.lower() == 'unset':
                 try:
                     channelid = await self.getdbasset(channeltype, ctx.guild)
                     if channelid is None:
-                        await ctx.send(f"No {channeltype} channel to unset!")
-                        return
+                        return -1
 
                     await self.bot.discordLogger.logsetup("unset", f"{channeltype} channel", ctx.author,
                                                           self.bot.get_channel(channelid), channeltype)
@@ -88,23 +87,25 @@ class Setup(commands.Cog):
                     consolelogger.warning(f"Failed log setting the {channel} log channel on server: {ctx.guild.name}")
 
                 await conn.execute(f"UPDATE log_channels SET {channeltype} = NULL WHERE guildid = $1", ctx.guild.id)
-                await ctx.send(f"{channeltype} channel unset!".title())
+                return 0
 
-            else:
+            elif mode.lower() == 'set':
                 # just in case
                 if channel is None:
                     await ctx.send("Please enter a channel to set")
-                    return
+                    return -1
 
-                await conn.execute(f"UPDATE log_channels SET {channeltype} = $1 WHERE guildid = $2", channel.id,
-                                   ctx.guild.id)
-                await ctx.send(f"{channeltype} channel set!".title())
+                await conn.execute(f"UPDATE log_channels SET {channeltype} = $1 WHERE guildid = $2", channel.id, ctx.guild.id)
 
                 try:
-                    await self.bot.discordLogger.logsetup("set", f"{channeltype} channel", ctx.author,
-                                                          channel, channeltype)
+                    await self.bot.discordLogger.logsetup("set", f"{channeltype} channel", ctx.author, channel, channeltype)
                 except errors.loggingError:
                     consolelogger.warning(f"Failed log setting the {channel} log channel on server: {ctx.guild.name}")
+                
+                return 0
+            
+            else:
+                raise commands.BadArgument("Unknown mode, valid modes are set and unset!")
 
     # channels
 
@@ -115,21 +116,54 @@ class Setup(commands.Cog):
         await ctx.send_help(ctx.command)
 
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @logchannel.command(aliases=['set'])
-    async def channelset(self, ctx, channeltype, channel: discord.TextChannel):
-        if channeltype.lower() not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
-            await ctx.send("Invalid log type. valid options are: `modlogs`, `messagelogs`, `memberlogs`")
+    @flags.add_flag("--modlogs", type=discord.TextChannel)
+    @flags.add_flag("--memberlogs", type=discord.TextChannel)
+    @flags.add_flag("--messagelogs", type=discord.TextChannel)
+    @logchannel.command(cls=flags.FlagCommand, aliases=['set'])
+    async def channelset(self, ctx, **logchannels):
+        """Sets a channel to be used as a log channel
+        - `--modlogs` logs moderaton commands like warn/ban/mute/kick/lockdown
+        - `--memberlogs` logs all data relating to users being updated, like nickname changes or role changes
+        - `--messagelogs` logs all data relating to messages, such as edits, deletions, or pinned messages by trusted members
+        """
+        activeFlags = {l for l in logchannels.items() if l[1]}
+        if not activeFlags:
+            return await ctx.send("Please specify a logchannel type you would like to add, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
+
         else:
-            await self.setunsetchannels(ctx, channel, channeltype, 'set')
+            msg = ""
+            async with ctx.channel.typing():
+                for chantype, channel in activeFlags:
+                    if await self.setunsetchannels(ctx, channel, chantype, 'set') == 0:
+                        msg += f"{chantype.title()}, "
+                
+            if msg:
+                await ctx.send(msg.rstrip(", ") + " have been set!")
+            else:
+                # should never appear
+                await ctx.send("Unable to set any channels to the database!")
 
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @logchannel.command(aliases=['unset'])
-    async def channelunset(self, ctx, channeltype):
-        if channeltype.lower() not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
-            await ctx.send("Invalid log type. valid options are: `modlogs`, `messagelogs`, `memberlogs`")
+    @flags.add_flag("--modlogs", default=None, action="store_true")
+    @flags.add_flag("--memberlogs", default=None, action="store_true")
+    @flags.add_flag("--messagelogs", default=None, action="store_true")
+    @logchannel.command(cls=flags.FlagCommand, aliases=['unset'])
+    async def channelunset(self, ctx, **channeltype):
+        activeFlags = [l[0] for l in channeltype.items() if l[1]]
+        if not activeFlags:
+            await ctx.send("Please specify a logchannel type you would like to remove, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
         else:
-            await self.setunsetchannels(ctx, None, channeltype, 'unset')
-
+            msg = ""
+            async with ctx.channel.typing():
+                for logtype in activeFlags:
+                    if await self.setunsetchannels(ctx, None, logtype, 'unset') == 0:
+                        msg += f"{logtype.title()}, "
+            
+            if msg:
+                await ctx.send(msg.rstrip(", ") + " have been unset!")
+            else:
+                # should never appear
+                await ctx.send("Unable to unset any channels to the database!")
     # roles
 
     @checks.is_staff_or_perms("Owner", administrator=True)
@@ -140,22 +174,60 @@ class Setup(commands.Cog):
 
 
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @dbrole.command(aliases=['set'])
-    async def roleset(self, ctx, roletype, role: discord.Role):
-        if roletype.lower() not in ('adminrole', 'approvedrole', 'modrole', 'mutedrole', 'ownerrole'):
-            await ctx.send(
-                "Invalid role type, valid role options are: `adminrole`, `approvedrole`, `modrole`, `mutedrole`, `ownerrole`")
+    @flags.add_flag("--adminrole", type=discord.Role)
+    @flags.add_flag("--approvedrole", type=discord.Role)
+    @flags.add_flag("--modrole", type=discord.Role)
+    @flags.add_flag("--mutedrole", type=discord.Role)
+    @flags.add_flag("--ownerrole", type=discord.Role)
+    @dbrole.command(cls=flags.FlagCommand, aliases=['set'])
+    async def roleset(self, ctx, **role_flags):
+        """Sets a role to be used in the database, these include staff roles, the approved role if you use an approval system, and the muted role
+
+        - `--adminrole` Role for administrators.
+        - `--ownerrole` Role for owners.
+        - `--modrole` Role for moderators
+        - `--approvedrole` Role users will get when they are approved to join a server fully.
+        - `--mutedrole` Role used to mute users.
+        """
+        activeFlags = {l for l in role_flags.items() if l[1]}
+        if not activeFlags:
+            return await ctx.send("Please specify a database role you would like to add, flags are `--adminrole`, `--approvedrole`, `--modrole`, `--mutedrole`, and `--ownerrole`")
+
         else:
-            await self.setunsetrole(ctx, role, roletype, 'set')
+            msg = ""
+            async with ctx.channel.typing():
+                for roletype, role in activeFlags:
+                    if await self.setunsetrole(ctx, role, roletype, 'set') == 0:
+                        msg += f"{roletype.title()}, "
+            
+            if msg:
+                await ctx.send(msg.rstrip(", ") + " have been set!")
+            else:
+                await ctx.send("Unable to set any roles to the database!")
 
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @dbrole.command(aliases=['unset'])
-    async def roleunset(self, ctx, roletype):
-        if roletype.lower() not in ('adminrole', 'approvedrole', 'modrole', 'mutedrole', 'ownerrole'):
-            await ctx.send(
-                "Invalid role type, valid role options are: `adminrole`, `approvedrole`, `modrole`, `mutedrole`, `ownerrole`")
+    @flags.add_flag("--adminrole", default=None, action="store_true")
+    @flags.add_flag("--approvedrole", default=None, action="store_true")
+    @flags.add_flag("--modrole", default=None, action="store_true")
+    @flags.add_flag("--mutedrole", default=None, action="store_true")
+    @flags.add_flag("--ownerrole", default=None, action="store_true")    
+    @dbrole.command(cls=flags.FlagCommand, aliases=['unset'])
+    async def roleunset(self, ctx, **role_flags):
+        activeFlags = {l for l in role_flags.items() if l[1]}
+        if not activeFlags:
+            return await ctx.send("Please specify a database role you would like to add, flags are `--adminrole`, `--approvedrole`, `--modrole`, `--mutedrole`, and `--ownerrole`")
         else:
-            await self.setunsetrole(ctx, None, roletype, 'unset')
+            msg = ""
+            async with ctx.channel.typing():
+                for roletype, role in activeFlags:
+                    if await self.setunsetrole(ctx, None, roletype, 'unset') == 0:
+                        msg += f"{roletype.title()}, "
+            
+            if msg:
+                await ctx.send(msg.rstrip(", ") + " have been unset!")
+            else:
+                # should never appear
+                await ctx.send("Unable to unset any roles to the database!")
 
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()

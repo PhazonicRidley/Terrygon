@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, flags
 from logzero import setup_logger
 import typing
 from utils import checks, common
@@ -100,10 +100,13 @@ class Mod(commands.Cog):
         # lockdown commands
 
     @checks.is_staff_or_perms("Mod", manage_channels=True)
-    @commands.command(aliases=['lock'], )
-    async def lockdown(self, ctx, channel: discord.TextChannel = None, *, reason=None):
-        """Locks a channel"""
+    @flags.add_flag("--channel", "-c", type=discord.TextChannel, default=None)
+    @flags.add_flag("--reason", '-r', type=str, default="", nargs="+")
+    @flags.command(aliases=['lock'], )
+    async def lockdown(self, ctx, **flag_args):
+        """Locks a channel, flags can be in any order. -c flag is only needed if locking a channel *other than the one the command is ran in*"""
         staffRoles = await common.getStaffRoles(ctx)
+        channel = flag_args['channel']
         if channel is None:
             channel = ctx.channel
         elif channel.id != ctx.channel.id:
@@ -139,7 +142,10 @@ class Mod(commands.Cog):
 
         try:
             chanmsg = f"{self.bot.discordLogger.emotes['lock']} Channel locked."
-            if reason is not None:
+            reason = None
+            if flag_args['reason']:
+                reason = ' '.join(flag_args['reason'])
+            if reason:
                 chanmsg += f" The reason is `{reason}`"
             if errorString:
                 chanmsg += f" But, {errorString}"
@@ -150,11 +156,13 @@ class Mod(commands.Cog):
             await ctx.send("I don't have permission to lock channels!")
 
     @checks.is_staff_or_perms("Mod", manage_channels=True)
-    @commands.command(aliases=['unlock'], )
-    async def unlockdown(self, ctx, channel: discord.TextChannel = None):
-        """Unlocks a channel"""
+    @flags.add_flag("--channel", '-c', type=discord.TextChannel, default=None)
+    @flags.command(aliases=['unlock'], )
+    async def unlockdown(self, ctx, **flag_args):
+        """Unlocks a channel, -c flag is not needed for unlocking the channel the command is invoked in"""
 
         staffRoles = await common.getStaffRoles(ctx)
+        channel = flag_args['channel']
         if channel is None:
             channel = ctx.channel
         else:

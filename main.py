@@ -5,7 +5,7 @@ from os import chdir
 import sys
 import discord
 import yaml
-from discord.ext import commands
+from discord.ext import commands, flags
 import asyncpg
 import asyncio
 from logzero import setup_logger
@@ -121,6 +121,9 @@ class Terrygon(commands.Bot):
 
         elif isinstance(error, errors.untrustedError):
             await ctx.send("You are not a trusted user or a staff member and thus cannot use this!")
+        
+        elif isinstance(error, flags.ArgumentParsingError):
+            await ctx.send_help(ctx.command)
 
         else:
             await ctx.send(f"An error occurred while processing the `{ctx.command.name}` command.")
