@@ -118,3 +118,12 @@ CREATE SCHEMA IF NOT EXISTS terrygon AUTHORIZATION terrygon; -- Change this line
         guildid BIGINT PRIMARY KEY,
         trusteduid BIGINT[]
     );
+
+     CREATE TABLE IF NOT EXISTS channel_block (
+        userid BIGINT NOT NULL,
+        guildid BIGINT NOT NULL,
+        blocktype TEXT[] NOT NULL,
+        channelid BIGINT NOT NULL,
+        reason TEXT,
+        timer TIMESTAMP
+    );
