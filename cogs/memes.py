@@ -4,6 +4,7 @@ from discord.ext import commands
 from logzero import setup_logger
 from utils import checks
 from discord.utils import escape_mentions
+from utils import paginator
 # set up console logging
 memecogconsolelog = setup_logger(name='memecogconsolelog', logfile='logs/memes.log', maxBytes=1000000)
 
@@ -58,13 +59,13 @@ class Memes(commands.Cog):
         guildmemes = (await self.bot.db.fetchval("SELECT guildmemes FROM memes WHERE guildid = $1", ctx.guild.id))
         globalmemes = (await self.bot.db.fetchval("SELECT guildmemes FROM memes WHERE guildid = 0"))
         embed = discord.Embed(title=f"Memes for {ctx.guild.name}", color=0xe55715)
-        guildmemestring = ""
+        guildmemeslist = []
         globalmemestring = ""
         if guildmemes:
             for meme in guildmemes.keys():
-                guildmemestring += f"{meme}\n"
+                guildmemeslist.append(str(meme))
         else:
-            guildmemestring = "No memes found!"
+            guildmemeslist.append("**No guild memes saved**")
 
         if globalmemes:
             for meme in globalmemes.keys():
@@ -72,9 +73,11 @@ class Memes(commands.Cog):
         else:
             globalmemestring = "No global memes found!"
 
-        embed.add_field(name="**Guild Memes**", value=guildmemestring, inline=True)
-        embed.add_field(name="**Global Memes**", value=globalmemestring, inline=True)
-        await ctx.send(embed=embed)
+        embed.description = "**Guild Memes**"
+        embed.add_field(name="**Global Memes**", value=globalmemestring, inline=False)
+
+        pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(guildmemeslist, per_page=8, embed=embed), clear_reactions_after=True, check_embeds=True)
+        await pages.start(ctx)
 
     @checks.is_bot_owner()
     @commands.command()

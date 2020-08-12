@@ -196,7 +196,8 @@ class Warn(commands.Cog):
                                            ctx.guild.id)
 
         if len(warnrecords) == 0:
-            embed = discord.Embed(title=f"Warns for {member.name}#{member.discriminator}", color=member.color)
+            embed = discord.Embed(color=member.color)
+            embed.set_author(name=f"Warns for {member.name}#{member.discriminator}", icon_url=member.avatar_url)
             embed.description = "There are none!"
             return await ctx.send(embed=embed)
 

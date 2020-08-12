@@ -30,6 +30,8 @@ class Logger():
             "unlock": "\U0001f513",
             "clear": "\U0001f5d1",
             "slowmode": "\U0001f551",
+            "block" : "\U0001f6ab",
+            "unblock" : "\U00002705",
             # utils
             "success": "\U00002705",
             "failure": "\U0001f4a2",
@@ -135,6 +137,29 @@ class Logger():
         except errors.loggingError:
             pass
 
+    # TODO add timed functionality
+    async def channelblock(self, logtype: str, member: discord.Member, author: discord.Member, channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel], blocktype: typing.List[str], reason: str = None) -> str:
+        """Logs channel blocks"""
+        channelmsg = ""
+        if isinstance(channel, discord.CategoryChannel):
+            channelmsg = f"the {channel.name} category."
+        else:
+            channelmsg = f"{channel.mention if isinstance(channel, discord.TextChannel) else channel.name}"
+
+        blockmsg = ""
+        if len(blocktype) > 1:
+            for i in blocktype:
+                blockmsg += f"{i}ing, "
+            blockmsg.rstrip(", ")
+        else:
+            blockmsg = f"{blocktype[0]}ing"
+
+        msg = f"{self.emotes[logtype]} **__User {logtype.title()}ed:__** {author.mention} has blocked {member.mention} | {member} from {blockmsg} in {channelmsg}\n{self.emotes['id']} User ID: {member.id}"
+        if reason:
+            msg += f"\n{self.emotes['reason']} Reason: {reason}"
+
+        await self.dispatch("modlogs", author.guild, logtype, msg)
+
     async def warnclear(self, ctx, logtype, member: typing.Union[discord.Member, discord.User], author, warn=None):
         if warn is None:
             msg = f"{self.emotes['clear']} **__Cleared Warns__** {member.mention} | {member}#{member.discriminator} had their warns cleared by {author.mention} | {author.name}#{author.discriminator}\n{self.emotes['id']} User ID: {member.id}"
@@ -185,7 +210,7 @@ class Logger():
 
     async def userUpdate(self, logtype, user: discord.User, userbefore, userafter):
         """User updates, agnostic to servers"""
-        msg = f"{self.emotes[logtype]} **__User Update:__** A user has updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{userbefore}` -> `{userafter}`"
+        msg = f"{self.emotes[logtype]} **__User Update:__** A {user.mention} has updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{userbefore}` -> `{userafter}`"
         for g in self.bot.guilds:
             if user in g.members:
                 channel = g.get_channel(await self.bot.db.fetchval("SELECT memberlogs FROM log_channels WHERE guildid = $1", g.id))

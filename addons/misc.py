@@ -2,8 +2,8 @@ from time import strftime
 
 import discord
 import yaml
-from discord.ext import commands
-from discord.utils import escape_mentions
+from discord.ext import commands, flags
+import re
 from utils import checks, common
 from datetime import datetime
 import typing
@@ -105,7 +105,6 @@ class Misc(commands.Cog):
     @commands.command(aliases=['avi'])
     async def avatar(self, ctx, member: typing.Union[discord.Member, int, str] = None):
         """Gets a user's avatar"""
-        # TODO move this code to its own function
         inserver = None
         if member is None:
             user = ctx.author
@@ -215,11 +214,8 @@ class Misc(commands.Cog):
             msg = msg[10:]
             actType = discord.ActivityType.listening
         else:
-            with open('config.yml', 'r+') as f:
-                config = yaml.safe_load(f)
-                config['activity'] = msg
-                yaml.dump(config, f)
             actType = discord.ActivityType.playing
+            msg = re.sub(r'^playing ', '', msg, flags=re.I)
 
         if to:
             msg = msg[3:]
@@ -255,7 +251,7 @@ class Misc(commands.Cog):
     async def speak(self, ctx, channel: discord.TextChannel, *, message):
         """Make the bot speak"""
         await ctx.message.delete()
-        await channel.send(escape_mentions(message))
+        await channel.send(message)
 
 
 def setup(bot):
