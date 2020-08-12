@@ -11,6 +11,63 @@ class Block(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        record = list(await self.bot.db.fetch(
+            "SELECT blocktype, channelid, reason FROM channel_block WHERE userid = $1 AND guildid = $2", member.id,
+            member.guild.id))
+        if not record:
+            return
+
+        blocklist = []
+        for blocktype, channelid, reason in record:
+            if not member.guild.get_channel(channelid):
+                continue
+            blocklist.append(dbBlocks(blocktype, member.guild.get_channel(channelid), reason))
+
+        channellist = []
+        for block in blocklist:
+            for action in block.blocktypes:
+                if 'view' in action:
+                    await self.apply_read_block(member, block.channel)
+                elif 'embedd' in action:
+                    await self.apply_embed_block(member, block.channel)
+                elif 'react' in action:
+                    await self.apply_reaction_block(member, block.channel)
+
+            if block.channel not in channellist:
+                channellist.append(block.channel.name)
+
+        await self.bot.discordLogger.onjoinblock(member, channellist)
+
+    async def apply_read_block(self, member: discord.Member, channel: typing.Union[
+        discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel]):
+        """Applies read block"""
+        try:
+            channeloverwrites = channel.overwrites_for(member)
+            channeloverwrites.read_messages = False
+            await channel.set_permissions(member, overwrite=channeloverwrites)
+        except discord.Forbidden:
+            pass
+
+    async def apply_embed_block(self, member: discord.Member, channel: discord.TextChannel):
+        try:
+            channeloverwrites = channel.overwrites_for(member)
+            channeloverwrites.embed_links = False
+            channeloverwrites.attach_files = False
+            await channel.set_permissions(member, overwrite=channeloverwrites)
+        except discord.Forbidden:
+            pass
+
+    async def apply_reaction_block(self, member: discord.Member, channel: discord.TextChannel):
+        try:
+            channeloverwrites = channel.overwrites_for(member)
+            channeloverwrites.add_reactions = False
+            await channel.set_permissions(member, overwrite=channeloverwrites)
+
+        except discord.Forbidden:
+            pass
+
     async def dbblocklist(self, member: discord.Member,
                           channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel],
                           blocktypes, mode, reason: str = None):
@@ -233,6 +290,35 @@ class Block(commands.Cog):
         await ctx.send(
             f"{member} has been unblocked and can now {', '.join(blockmsg)} in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
 
+    @checks.is_staff_or_perms('Mod', manage_roles=True)
+    @commands.command()
+    async def unblockall(self, ctx, member: discord.Member):
+        """Removes all blocks on a user (Mod+, manage roles)"""
+        channelids = await self.bot.db.fetch(
+            "SELECT channelid FROM channel_block WHERE userid = $1 AND guildid = $2", member.id,
+            member.guild.id)
+        if not channelids:
+            return await ctx.send("No blocks found for this user!")
+
+        channellist = []
+        for channelid in channelids:
+            channelid = channelid[0]
+            if ctx.guild.get_channel(channelid) is None:
+                continue
+            channel = ctx.guild.get_channel(channelid)
+            try:
+                await channel.set_permissions(member, overwrite=None)
+            except discord.Forbidden:
+                pass
+
+            if channel not in channellist:
+                channellist.append(channel.name)
+
+        await self.bot.db.execute("DELETE FROM channel_block WHERE guildid = $1 AND userid = $2", member.guild.id, member.id)
+        await ctx.send(f"All blocks cleared for {member}")
+
+        await self.bot.discordLogger.unblockalllog(member, ctx.author, channellist)
+
     @commands.command()
     async def listblocks(self, ctx, member: discord.Member = None):
         """Checks what channels you are blocked from, only staff may check other users"""
@@ -270,7 +356,9 @@ class Block(commands.Cog):
 
         if deletedchannelblocklist:
             for block in deletedchannelblocklist:
-                await self.bot.db.execute("DELETE FROM channel_block WHERE userid = $1 AND guildid = $2 AND channelid = $3", member.id, ctx.guild.id, block.channel)
+                await self.bot.db.execute(
+                    "DELETE FROM channel_block WHERE userid = $1 AND guildid = $2 AND channelid = $3", member.id,
+                    ctx.guild.id, block.channel)
 
         embed.description = bmsg
 

@@ -30,8 +30,8 @@ class Logger():
             "unlock": "\U0001f513",
             "clear": "\U0001f5d1",
             "slowmode": "\U0001f551",
-            "block" : "\U0001f6ab",
-            "unblock" : "\U00002705",
+            "block": "\U0001f6ab",
+            "unblock": "\U00002705",
             # utils
             "success": "\U00002705",
             "failure": "\U0001f4a2",
@@ -137,8 +137,19 @@ class Logger():
         except errors.loggingError:
             pass
 
+    async def onjoinblock(self, member, channels: list):
+        msg = f"{self.emotes['block']} **__User Auto-Blocked On Join:__**  {member.mention} | {member} has blocked from the following channels: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
+
+        await self.dispatch('modlogs', member.guild, 'block', msg)
+
+    async def unblockalllog(self, member, author, channels: list):
+        msg = f"{self.emotes['unblock']} **__User Unblocked Fully:__** {author.mention} has removed all blocks on {member.mention} | {member}. Blocked channels were: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
+
+        await self.dispatch('modlogs', member.guild, 'unblock', msg)
     # TODO add timed functionality
-    async def channelblock(self, logtype: str, member: discord.Member, author: discord.Member, channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel], blocktype: typing.List[str], reason: str = None) -> str:
+    async def channelblock(self, logtype: str, member: discord.Member, author: discord.Member,
+                           channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel],
+                           blocktype: typing.List[str], reason: str = None) -> str:
         """Logs channel blocks"""
         channelmsg = ""
         if isinstance(channel, discord.CategoryChannel):
@@ -213,7 +224,8 @@ class Logger():
         msg = f"{self.emotes[logtype]} **__User Update:__** A {user.mention} has updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{userbefore}` -> `{userafter}`"
         for g in self.bot.guilds:
             if user in g.members:
-                channel = g.get_channel(await self.bot.db.fetchval("SELECT memberlogs FROM log_channels WHERE guildid = $1", g.id))
+                channel = g.get_channel(
+                    await self.bot.db.fetchval("SELECT memberlogs FROM log_channels WHERE guildid = $1", g.id))
                 if not channel:
                     continue
                 else:

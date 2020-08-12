@@ -97,8 +97,8 @@ class Mod(commands.Cog):
 
             await ctx.send(f"{member} has been unmuted.")
 
-        # lockdown commands
 
+    # lockdown commands
     @checks.is_staff_or_perms("Mod", manage_channels=True)
     @flags.add_flag("--channel", "-c", type=discord.TextChannel, default=None)
     @flags.add_flag("--reason", '-r', type=str, default="", nargs="+")
