@@ -48,7 +48,7 @@ def is_staff_or_perms(minStaffRole: str, **perms):
                 raise commands.CommandInvokeError(e)
 
         userRoles = [role.id for role in ctx.message.author.roles]
-        if any(role in userRoles for role in staffroles) or not missing:
+        if any(role in userRoles for role in staffroles) or not missing or permissions.administrator:
             return True
         else:
             raise errors.missingStaffRoleOrPerms(minStaffRole, missing)
@@ -85,7 +85,7 @@ async def nondeco_is_staff_or_perms(ctx, minStaffRole, **perms) -> bool:
             raise commands.CommandInvokeError(e)
 
     userRoles = [role.id for role in ctx.message.author.roles]
-    if any(role in userRoles for role in staffroles) or not missing:
+    if any(role in userRoles for role in staffroles) or not missing or permissions.administrator:
         return True
     else:
         return False

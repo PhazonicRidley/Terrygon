@@ -16,7 +16,7 @@ class Logger():
 
     def __init__(self, bot):
         self.bot = bot
-        # temp emoji dict for logging, will convert to full sql database json thingy later
+        # TODO temp emoji dict for logging, will convert to full sql database json thingy later
         self.emotes = {
             # mod actions
             'ban': "\U000026d4",
@@ -149,7 +149,7 @@ class Logger():
         try:
             await self.dispatch('modlogs', author.guild, logtype, msg, embed)
         except errors.loggingError:
-            await ctx.send("Please configure logging for modlogs using `[p]logchannel set modlogs #<yourchannel>`")
+            pass
 
     async def slowmodelog(self, channel: discord.TextChannel, time: str, author: discord.Member, reason=None):
         """Slowmode logging"""
@@ -183,13 +183,12 @@ class Logger():
         except errors.loggingError:
             pass
 
-    async def userUpdate(self, user, logtype, userbefore, userafter):
+    async def userUpdate(self, logtype, user: discord.User, userbefore, userafter):
         """User updates, agnostic to servers"""
-        msg = f"{self.emotes[logtype]} **__User Update:__** A user has updated their {logtype}: `{userbefore}` -> `{userafter}`!\n{self.emotes['id']} User ID: {user}\n"
+        msg = f"{self.emotes[logtype]} **__User Update:__** A user has updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{userbefore}` -> `{userafter}`"
         for g in self.bot.guilds:
-            if userafter in g:
-                channel = g.get_channel(
-                    self.bot.db.fetchval("SELECT memberlogs FROM log_channels WHERE guildid = $1", g.id))
+            if user in g.members:
+                channel = g.get_channel(await self.bot.db.fetchval("SELECT memberlogs FROM log_channels WHERE guildid = $1", g.id))
                 if not channel:
                     continue
                 else:

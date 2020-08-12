@@ -125,7 +125,6 @@ class BotOwner(commands.Cog):
     @commands.command(aliases=['listext', 'listextention', 'listcogs', 'listaddons'], )
     async def listextentions(self, ctx):
         """Lists modules that are loaded and unloaded"""
-        # TODO rewrite at a later time. this code be bad!
         unloadedaddons = [file[:-3] for file in os.listdir('addons') if file.endswith(".py")]
         unloadedcogs = [file[:-3] for file in os.listdir('cogs') if file.endswith(".py")]
         loaded_extentions = self.bot.extensions
@@ -173,9 +172,9 @@ class BotOwner(commands.Cog):
             if platform.system() == 'Linux':
                 try:
                     await self.bot.logout()
-                    os.system('systemctl --user stop terrygon.service') # TODO update name
+                    os.system('systemctl --user stop terrygon.service')  # TODO update name
                     sys.exit(0)
-                    
+
                 except Exception:
                     pass
             await self.bot.logout()
@@ -203,17 +202,15 @@ class BotOwner(commands.Cog):
         await asyncio.sleep(1)
 
         if platform.system() == 'Linux':
-                await self.bot.logout()
-                if os.system('systemctl --user restart terrygon.service') == 0:
-                    return await ctx.send("Restarted")
+            await self.bot.logout()
+            if os.system('systemctl --user restart terrygon.service') == 0:
+                return await ctx.send("Restarted")
 
-                else:
-                    self.nondaemonrestart()
+            else:
+                self.nondaemonrestart()
 
         else:
             self.nondaemonrestart()
-
-
 
     @checks.is_bot_owner()
     @commands.command()
@@ -225,7 +222,7 @@ class BotOwner(commands.Cog):
                     res = await conn.fetch(query)
                 else:
                     res = await conn.execute(query)
-                if res is None:
+                if not res:
                     return await ctx.send("Nothing found in database!")
                 try:
                     table = tabulate(res, res[0].keys(), tablefmt='psql')
@@ -249,6 +246,7 @@ class BotOwner(commands.Cog):
         subprocess.run(["git", "stash", "save"])
         subprocess.run(["git", "pull"])
         subprocess.run(["git", "stash", "clear"])
+        await ctx.send("Restarting...")
         await self.restartbot(ctx)
 
 

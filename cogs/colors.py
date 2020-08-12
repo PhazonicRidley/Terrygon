@@ -19,7 +19,7 @@ class Colors(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member):
         if member.guild.member_count > 100:
-            await self.bot.db.execute("UPDATE colors SET colormode = communal WHERE guildid = $1", member.guild.id)
+            await self.bot.db.execute("UPDATE colors SET colormode = communal_role_data WHERE guildid = $1", member.guild.id)
             await member.guild.owner.send(
                 "Your server has reached over 100 members, I have switched your color role mode to communal. I recommend setting up communal color roles with <this command> and making an announcement.")
 

@@ -178,7 +178,8 @@ class Mod(commands.Cog):
         errorString = ""
         for overwrite, permoverwriteobj in channel.overwrites.items():
             if isinstance(overwrite, discord.Role):
-                if overwrite not in staffRoles and overwrite.id != await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id):
+                if overwrite not in staffRoles and overwrite.id != await self.bot.db.fetchval(
+                        "SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id):
                     try:
                         permoverwriteobj.send_messages = None
                         permoverwriteobj.add_reactions = None

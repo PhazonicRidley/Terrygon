@@ -32,12 +32,12 @@ async def _callable_prefix(bot, message):
     else:
         return commands.when_mentioned_or(default_prefix)(bot, message)
 
+
 class Terrygon(commands.Bot):
     def __init__(self):
         loop = asyncio.get_event_loop()
         help_cmd = commands.MinimalHelpCommand(dm_help=None, dm_help_threshold=800)
-        super().__init__(command_prefix=_callable_prefix, description=self.readConfig("description"),
-                         max_messages=10000, help_command=help_cmd)
+        super().__init__(command_prefix=_callable_prefix, description=self.readConfig("description"), max_messages=10000, help_command=help_cmd, allowed_mentions=discord.AllowedMentions(everyone=False, users=True, roles=True))
 
         try:
             self.db = loop.run_until_complete(self.create_pool(self.readConfig('db')))
@@ -92,7 +92,8 @@ class Terrygon(commands.Bot):
                 f"An HTTP {error.original.status} has occurred for the following reason: `{error.original.text}`")
 
         elif isinstance(error, (
-        commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument, commands.TooManyArguments)):
+                commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument,
+                commands.TooManyArguments)):
             await ctx.send_help(ctx.command)
 
         elif isinstance(error, commands.errors.CommandOnCooldown):
@@ -121,9 +122,9 @@ class Terrygon(commands.Bot):
 
         elif isinstance(error, errors.untrustedError):
             await ctx.send("You are not a trusted user or a staff member and thus cannot use this!")
-        
-        elif isinstance(error, flags.ArgumentParsingError):
-            await ctx.send_help(ctx.command)
+
+       # elif isinstance(error, flags.ArgumentParsingError):
+            #await ctx.send_help(ctx.command)
 
         else:
             await ctx.send(f"An error occurred while processing the `{ctx.command.name}` command.")
@@ -131,7 +132,6 @@ class Terrygon(commands.Bot):
             logMsg = "Exception occurred in `{0.command}` in {0.message.channel.mention}".format(ctx)
             tb = format_exception(type(error), error, error.__traceback__)
             print(''.join(tb))
-            # TODO redo error logging in separate files
             errorlogs.info(f"COMMAND: {ctx.command.name}, GUILD: {ctx.guild.name} CHANNEL: {ctx.channel.name}")
             errorlogs.exception(logMsg + "".join(tb) + '\n\n')
             for errorchanid in self.readConfig('boterrchannelid'):

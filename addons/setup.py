@@ -279,7 +279,7 @@ class Setup(commands.Cog):
         """Manage and list the guild's custom prefixes, by default the only avalable prefixes will be mentioning the bot or the global default prefix"""
         await ctx.send_help(ctx.command)
 
-    @checks.is_staff_or_perms("Admin", manage_server=True)
+    @checks.is_staff_or_perms("Admin", manage_guild=True)
     @prefix.command()
     async def add(self, ctx, newprefix):
         """Adds a prefix to the bot for your guild (Admin+, or manage server) (No more than 10 per guild)"""
@@ -299,10 +299,10 @@ class Setup(commands.Cog):
                 else:
                     return await ctx.send("This prefix is already in the guild!")
 
-    @checks.is_staff_or_perms("Admin", manage_server=True)
+    @checks.is_staff_or_perms("Admin", manage_guild=True)
     @prefix.command(aliases=['del', 'delete'])
     async def remove(self, ctx, prefix):
-        """Removes a prefix from the guild (Admin+, or manage_server)"""
+        """Removes a prefix from the guild (Admin+, or Manage Server)"""
         async with self.bot.db.acquire() as conn:
             guildprefixes = await conn.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", ctx.guild.id)
             if not guildprefixes:
