@@ -138,6 +138,7 @@ class Misc(commands.Cog):
         """Returns image spoilered"""
         message = ctx.message
         msgcontent = message.content[len(ctx.prefix) + len(ctx.command.name) + 1:]
+        msgcontent = msgcontent.lstrip('r ')
 
         filelist: typing.List[discord.File] = []
         for attachment in message.attachments:
