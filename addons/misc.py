@@ -133,7 +133,7 @@ class Misc(commands.Cog):
         """Info about the bot"""
         await ctx.send("https://gitlab.com/PhazonicRidley/terrygon")
 
-    @commands.command()
+    @commands.command(aliases=['spoiler'])
     async def spoil(self, ctx):
         """Returns image spoilered"""
         message = ctx.message
