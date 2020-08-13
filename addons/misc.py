@@ -32,13 +32,14 @@ class Misc(commands.Cog):
 
     @commands.guild_only()
     @commands.command(aliases=['currentperms'])
-    async def currentpermissions(self, ctx, item : typing.Union[discord.Member, discord.Role] = None):
+    async def currentpermissions(self, ctx, item: typing.Union[discord.Member, discord.Role] = None):
         """Lists a user's or a role's current permissions"""
         if item is None:
             item = ctx.author
 
         permnames = []
-        embed = discord.Embed(title=f"Permissions on {ctx.guild.name} for {type(item).__name__.lower()} {item.name}", colour=item.color.value)
+        embed = discord.Embed(title=f"Permissions on {ctx.guild.name} for {type(item).__name__.lower()} {item.name}",
+                              colour=item.color.value)
         permlist = item.guild_permissions if isinstance(item, discord.Member) else item.permissions
         for name, value in permlist:
             name = name.replace('_', ' ').title()
@@ -132,6 +133,25 @@ class Misc(commands.Cog):
         """Info about the bot"""
         await ctx.send("https://gitlab.com/PhazonicRidley/terrygon")
 
+    @commands.command()
+    async def spoil(self, ctx):
+        """Returns image spoilered"""
+        message = ctx.message
+        if len(message.attachments) == 0:
+            return await ctx.send("No attachments found")
+
+        filelist: typing.List[discord.File] = []
+        for attachment in message.attachments:
+            filelist.append(await attachment.to_file(spoiler=True))
+
+        msgcontent = message.content[len(ctx.prefix) + len(ctx.command.name) + 1:]
+        try:
+            await message.delete()
+        except discord.Forbidden:
+            pass
+
+        await ctx.send(f"||{msgcontent}||", files=filelist)
+
     @commands.guild_only()
     @commands.command(aliases=['serverinfo', 'server'])
     async def guildinfo(self, ctx):
@@ -190,7 +210,9 @@ class Misc(commands.Cog):
 
         # channel info
 
-        embed.add_field(name="**Channel Info**", value=f":hash: **__Number of text channels:__** {len(ctx.guild.text_channels)}\n:loud_sound: **__Number of voice channels:__** {len(ctx.guild.voice_channels)}\n", inline=False)
+        embed.add_field(name="**Channel Info**",
+                        value=f":hash: **__Number of text channels:__** {len(ctx.guild.text_channels)}\n:loud_sound: **__Number of voice channels:__** {len(ctx.guild.voice_channels)}\n",
+                        inline=False)
 
         await ctx.send(embed=embed)
 
@@ -256,4 +278,3 @@ class Misc(commands.Cog):
 
 def setup(bot):
     bot.add_cog(Misc(bot))
-    
