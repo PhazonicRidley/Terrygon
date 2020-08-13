@@ -137,20 +137,24 @@ class Misc(commands.Cog):
     async def spoil(self, ctx):
         """Returns image spoilered"""
         message = ctx.message
-        if len(message.attachments) == 0:
-            return await ctx.send("No attachments found")
+        msgcontent = message.content[len(ctx.prefix) + len(ctx.command.name) + 1:]
 
         filelist: typing.List[discord.File] = []
         for attachment in message.attachments:
             filelist.append(await attachment.to_file(spoiler=True))
 
-        msgcontent = message.content[len(ctx.prefix) + len(ctx.command.name) + 1:]
         try:
             await message.delete()
         except discord.Forbidden:
             pass
 
-        await ctx.send(f"||{msgcontent}||", files=filelist)
+        if len(filelist) > 10:
+            return await ctx.send("Cannot attach more than 10 files!")
+
+        if msgcontent == "" or not msgcontent:
+            await ctx.send(files=filelist)
+        else:
+            await ctx.send(f"||{msgcontent}||", files=filelist)
 
     @commands.guild_only()
     @commands.command(aliases=['serverinfo', 'server'])
