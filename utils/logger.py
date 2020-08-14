@@ -254,7 +254,7 @@ class Logger():
         elif logtype == 'add role':
             for role in roles_after:
                 if role not in roles_before:
-                    role_string += f" __**{role.name}**__,"
+                    role_string += f" __***{role.name}***__,"
                 else:
                     role_string += f" {role.name},"
 
