@@ -221,7 +221,7 @@ class Logger():
 
     async def userUpdate(self, logtype, user: discord.User, userbefore, userafter):
         """User updates, agnostic to servers"""
-        msg = f"{self.emotes[logtype]} **__User Update:__** A {user.mention} has updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{userbefore}` -> `{userafter}`"
+        msg = f"{self.emotes[logtype]} **__User Update:__** {user.mention} has updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{userbefore}` -> `{userafter}`"
         for g in self.bot.guilds:
             if user in g.members:
                 channel = g.get_channel(
