@@ -123,8 +123,8 @@ class Terrygon(commands.Bot):
         elif isinstance(error, errors.untrustedError):
             await ctx.send("You are not a trusted user or a staff member and thus cannot use this!")
 
-       # elif isinstance(error, flags.ArgumentParsingError):
-            #await ctx.send_help(ctx.command)
+        elif isinstance(error, flags.ArgumentParsingError):
+            await ctx.send_help(ctx.command)
 
         else:
             await ctx.send(f"An error occurred while processing the `{ctx.command.name}` command.")
