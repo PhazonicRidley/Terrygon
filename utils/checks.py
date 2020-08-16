@@ -132,7 +132,7 @@ async def modAndBotProtection(bot, ctx, target, action):
     elif target.bot:
         return f"You cannot {action} bots"
 
-    elif owner_role in target.roles:
+    elif owner_role in target.roles or target == target.guild.owner:
         return f"You cannot {action} an owner"
 
     elif any(role in staff_roles for role in target.roles) and owner_role not in ctx.author.roles:

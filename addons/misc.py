@@ -153,9 +153,9 @@ class Misc(commands.Cog):
             return await ctx.send("Cannot attach more than 10 files!")
 
         if msgcontent == "" or not msgcontent:
-            await ctx.send(files=filelist)
+            await ctx.send(f"{ctx.author}:", files=filelist)
         else:
-            await ctx.send(f"||{msgcontent}||", files=filelist)
+            await ctx.send(f"{ctx.author}: ||{msgcontent}||", files=filelist)
 
     @commands.guild_only()
     @commands.command(aliases=['serverinfo', 'server'])
