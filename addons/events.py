@@ -122,7 +122,8 @@ class Events(commands.Cog):
         if not await self.bot.isLogRegistered(member.guild, "memberlogs"):
             return
 
-        if await self.bot.db.fetchval("SELECT enableJoinLeaveLogs FROM guild_settings WHERE guildID = $1", member.guild.id):
+        if await self.bot.db.fetchval("SELECT enableJoinLeaveLogs FROM guild_settings WHERE guildID = $1",
+                                      member.guild.id):
             await self.bot.discordLogger.joinleaveLogs("left", member)
 
     # message logs
@@ -136,8 +137,9 @@ class Events(commands.Cog):
 
         if after.author.bot:
             return
-    
-        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1", after.guild.id):
+
+        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1",
+                                      after.guild.id):
             await self.bot.discordLogger.messageEditLogs("msgedit", before, after)
 
     @commands.Cog.listener()
@@ -145,12 +147,49 @@ class Events(commands.Cog):
         if not await self.bot.isLogRegistered(message.guild, "messagelogs"):
             return
 
-        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1", message.guild.id):
+        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1",
+                                      message.guild.id):
             await self.bot.discordLogger.messageDeletion("mdelete", message)
 
     @commands.Cog.listener()
     async def on_guild_join(self, newGuild):
         await self.addGuild(newGuild)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_create(self, channel):
+        mutedrole = await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", channel.guild.id)
+        mutedrole = channel.guild.get_role(mutedrole)
+        if not mutedrole:
+            return
+        kwargs = {
+            'send_messages': False
+        }
+
+        if isinstance(channel, discord.CategoryChannel):
+            kwargs.update({'connect': False})
+        elif isinstance(channel, discord.VoiceChannel):
+            del kwargs['send_messages']
+            kwargs.update({'connect': False})
+
+        try:
+            channel.overwrites[mutedrole]
+        except KeyError:
+            try:
+                await channel.set_permissions(mutedrole, **kwargs)
+            except discord.Forbidden:
+                return
+
+        if await self.bot.db.fetchval("SELECT approvalSystem FROM guild_settings WHERE guildid = $1", channel.guild.id):
+            approval_role = channel.guild.get_role(await self.bot.db.fetchval("SELECT approvedrole FROM roles WHERE guildid = $1", channel.guild.id))
+            if not approval_role:
+                return
+
+            if channel.overwrites_for(channel.guild.default_role).read_messages is not False:
+                try:
+                    await channel.set_permissions(approval_role, read_messages=True)
+                    await channel.set_permissions(channel.guild.default_role, read_messages=False)
+                except discord.Forbidden:
+                    return
 
     @checks.is_bot_owner()
     @commands.command()

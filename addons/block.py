@@ -27,46 +27,35 @@ class Block(commands.Cog):
 
         channellist = []
         for block in blocklist:
-            for action in block.blocktypes:
-                if 'view' in action:
-                    await self.apply_read_block(member, block.channel)
-                elif 'embedd' in action:
-                    await self.apply_embed_block(member, block.channel)
-                elif 'react' in action:
-                    await self.apply_reaction_block(member, block.channel)
-
+            await self.apply_blocks(member, block.channel, block.blocktypes)
             if block.channel not in channellist:
                 channellist.append(block.channel.name)
 
-        await self.bot.discordLogger.onjoinblock(member, channellist)
+        await self.bot.discordLogger.onjoinblock(member, channellist, await self.listblocksdb(member))
 
-    async def apply_read_block(self, member: discord.Member, channel: typing.Union[
-        discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel]):
-        """Applies read block"""
-        try:
-            channeloverwrites = channel.overwrites_for(member)
-            channeloverwrites.read_messages = False
-            await channel.set_permissions(member, overwrite=channeloverwrites)
-        except discord.Forbidden:
-            pass
+    async def apply_blocks(self, member: discord.Member, channel: typing.Union[
+        discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel], blocklist):
+        """Applies blocks to a user on join"""
+        perm_kwargs = {
+            'view': {
+                'read_messages': False
+            },
+            'embed': {
+                'embed_links': False,
+                'attach_files': False
+            },
+            'react': {
+                'add_reactions': False
+            }
+        }
+        for block in blocklist:
+            try:
+                channeloverwrites = channel.overwrites_for(member)
+                channeloverwrites.update(**perm_kwargs[block])
+                await channel.set_permissions(member, overwrite=channeloverwrites)
+            except discord.Forbidden:
+                pass
 
-    async def apply_embed_block(self, member: discord.Member, channel: discord.TextChannel):
-        try:
-            channeloverwrites = channel.overwrites_for(member)
-            channeloverwrites.embed_links = False
-            channeloverwrites.attach_files = False
-            await channel.set_permissions(member, overwrite=channeloverwrites)
-        except discord.Forbidden:
-            pass
-
-    async def apply_reaction_block(self, member: discord.Member, channel: discord.TextChannel):
-        try:
-            channeloverwrites = channel.overwrites_for(member)
-            channeloverwrites.add_reactions = False
-            await channel.set_permissions(member, overwrite=channeloverwrites)
-
-        except discord.Forbidden:
-            pass
 
     async def dbblocklist(self, member: discord.Member,
                           channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel],
@@ -128,7 +117,6 @@ class Block(commands.Cog):
 
         This command can be used to block a user from having certain permissions in specific channels or channel categories.
         The available flags are `--view` (`-v`) to block viewing perms, `--embed` (`-e`) to block embedding and attachment perms, and `--addreactions` (`-a`) to block reaction perms.
-        The view flag can only be used by itself as there is no need to also block those other permissions while viewing is being blocked.
         Please note that if you block someone from a category it will only be applied to the channels that are synced with the category
         """
         modandbotprotection = await checks.modAndBotProtection(self.bot, ctx, member, "block")
@@ -148,69 +136,58 @@ class Block(commands.Cog):
         reason = None
         if flag_options.get('reason'):
             reason = ' '.join(flag_options['reason'])
-        blockmsg = []
-        if flag_options.get('view'):
-            blockmsg.append("view")
-            if await self.bot.db.fetchval(
-                    "SELECT blocktype @> ARRAY['view'] FROM channel_block WHERE userid = $1 AND channelid = $2",
-                    member.id, channel.id):
-                return await ctx.send(f"{member} is already blocked from seeing {channel.mention}")
-            try:
-                channeloverwrites = channel.overwrites_for(member)
-                channeloverwrites.read_messages = False
-                await channel.set_permissions(member, overwrite=channeloverwrites)
-            except discord.Forbidden:
-                return await ctx.send("I do not have permission to block users!")
+        blockmsg = set()
 
-            await self.dbblocklist(member, channel, blockmsg, "block", reason)
-            await self.bot.discordLogger.channelblock("block", member, ctx.author, channel, blockmsg, reason)
-            await ctx.send(
-                f"{member} has been blocked from viewing {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
-            return
+        perm_kwargs = {
+            'view': {
+                'read_messages': False
+            },
+            'embed': {
+                'embed_links': False,
+                'attach_files': False
+            },
+            'react': {
+                'add_reactions': False
+            }
+        }
+        if flag_options.get('view'):
+            blockmsg.add('view')
 
         if flag_options.get('embed'):
-            if await self.bot.db.fetchval(
-                    "SELECT blocktype @> ARRAY['embedd'] FROM channel_block WHERE userid = $1 AND channelid = $2",
-                    member.id, channel.id):
-                return await ctx.send(f"{member} is already blocked from embedding to {channel.mention}")
-
-            blockmsg.append("embedd")
-            if not isinstance(channel, discord.VoiceChannel):
-                try:
-                    channeloverwrites = channel.overwrites_for(member)
-                    channeloverwrites.embed_links = False
-                    channeloverwrites.attach_files = False
-                    await channel.set_permissions(member, overwrite=channeloverwrites)
-                except discord.Forbidden:
-                    return await ctx.send("I do not have permission to block users!")
-            else:
-                return await ctx.send("You cannot stop embedding in a voice channel")
+            blockmsg.add('embed')
 
         if flag_options.get('addreactions'):
-            if await self.bot.db.fetchval(
-                    "SELECT blocktype @> ARRAY['react'] FROM channel_block WHERE userid = $1 AND channelid = $2",
-                    member.id, channel.id):
-                return await ctx.send(f"{member} is already blocked from reacting in {channel.mention}")
-            blockmsg.append("react")
-            if not isinstance(channel, discord.VoiceChannel):
-                try:
-                    channeloverwrites = channel.overwrites_for(member)
-                    channeloverwrites.add_reactions = False
-                    await channel.set_permissions(member, overwrite=channeloverwrites)
-                except discord.Forbidden:
-                    return await ctx.send("I do not have permission to block users!")
-            else:
-                return await ctx.send("You cannot block reactions in a voice channel")
+            blockmsg.add('react')
 
         if len(blockmsg) == 0:
             await ctx.send("Please use a flag for the permission you would like the block!")
             await ctx.send_help(ctx.command)
             return
 
-        await self.dbblocklist(member, channel, blockmsg, "block", reason)
-        await self.bot.discordLogger.channelblock("block", member, ctx.author, channel, blockmsg, reason)
-        await ctx.send(
-            f"{member} has been blocked from {'ing, '.join(blockmsg)}ing in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
+        alreadyblocked = set()
+        for blocktype in blockmsg:
+            if await self.bot.db.fetchval(
+                    f"SELECT blocktype @> ARRAY['{blocktype}'] FROM channel_block WHERE userid = $1 AND channelid = $2",
+                    member.id, channel.id):
+                alreadyblocked.add(blocktype)
+                continue
+            try:
+                channeloverwrites = channel.overwrites_for(member)
+                channeloverwrites.update(**perm_kwargs[blocktype])
+                await channel.set_permissions(member, overwrite=channeloverwrites)
+            except discord.Forbidden:
+                return await ctx.send("I do not have permission to block users!")
+
+        if alreadyblocked:
+            await ctx.send(
+                f"{member} is already blocked from being able to `{'`, `'.join(alreadyblocked)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
+            blockmsg -= alreadyblocked
+
+        if len(blockmsg) > 0:
+            await self.dbblocklist(member, channel, blockmsg, "block", reason)
+            await self.bot.discordLogger.channelblock("block", member, ctx.author, channel, blockmsg, reason)
+            await ctx.send(
+                f"{member} can no longer `{'`, `'.join(blockmsg)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}.")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
@@ -220,8 +197,7 @@ class Block(commands.Cog):
     @flags.add_flag("--channel", '-c', type=str, default=None)
     @flags.command()
     async def unblock(self, ctx, member: discord.Member, **flag_options):
-        """Unblocks a user's permission in a channel (Mod+ or manage roles)"""
-        modandbotprotection = await checks.modAndBotProtection(self.bot, ctx, member, "unblock")
+        modandbotprotection = await checks.modAndBotProtection(self.bot, ctx, member, "block")
         if modandbotprotection is not None:
             await ctx.send(modandbotprotection)
             return
@@ -235,60 +211,60 @@ class Block(commands.Cog):
             cid = int(match.group()) if match is not None else channel
             channel = self.get_guild_channels(ctx.guild, cid)
 
-        blockmsg = []
+        unblockmsg = set()
+
+        perm_kwargs = {
+            'view': {
+                'read_messages': None
+            },
+            'embed': {
+                'embed_links': None,
+                'attach_files': None
+            },
+            'react': {
+                'add_reactions': None
+            }
+        }
         if flag_options.get('view'):
-            blockmsg.append("view")
+            unblockmsg.add('view')
+
+        if flag_options.get('embed'):
+            unblockmsg.add('embed')
+
+        if flag_options.get('addreactions'):
+            unblockmsg.add('react')
+
+        if len(unblockmsg) == 0:
+            await ctx.send("Please use a flag for the permission you would like the unblock!")
+            await ctx.send_help(ctx.command)
+            return
+
+        notblocked = set()
+        for unblocktype in unblockmsg:
             if not await self.bot.db.fetchval(
-                    "SELECT blocktype @> ARRAY['view'] FROM channel_block WHERE userid = $1 AND channelid = $2",
+                    f"SELECT blocktype @> ARRAY['{unblocktype}'] FROM channel_block WHERE userid = $1 AND channelid = $2",
                     member.id, channel.id):
-                return await ctx.send(
-                    f"{member} is not blocked from seeing {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
+                notblocked.add(unblocktype)
+                continue
             try:
                 channeloverwrites = channel.overwrites_for(member)
-                channeloverwrites.read_messages = None
+                channeloverwrites.update(**perm_kwargs[unblocktype])
                 await channel.set_permissions(member, overwrite=channeloverwrites)
+                if channeloverwrites.is_empty():
+                    await channel.set_permissions(member, overwrite=None)
             except discord.Forbidden:
                 return await ctx.send("I do not have permission to unblock users!")
 
-        if flag_options.get('embed'):
-            if not await self.bot.db.fetchval(
-                    "SELECT blocktype @> ARRAY['embedd'] FROM channel_block WHERE userid = $1 AND channelid = $2",
-                    member.id, channel.id):
-                return await ctx.send(f"{member} is not blocked from embedding to {channel.mention}")
+        if notblocked:
+            await ctx.send(
+                f"{member} is not blocked from being able to `{'`, `'.join(notblocked)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
+            unblockmsg -= notblocked
 
-            blockmsg.append("embedd")
-            try:
-                channeloverwrites = channel.overwrites_for(member)
-                channeloverwrites.embed_links = None
-                channeloverwrites.attach_files = None
-                await channel.set_permissions(member, overwrite=channeloverwrites)
-            except discord.Forbidden:
-                return await ctx.send("I do not have permission to block users!")
-
-        if flag_options.get('addreactions'):
-            if not await self.bot.db.fetchval(
-                    "SELECT blocktype @> ARRAY['react'] FROM channel_block WHERE userid = $1 AND channelid = $2",
-                    member.id, channel.id):
-                return await ctx.send(f"{member} is not blocked from reacting in {channel.mention}")
-            blockmsg.append("react")
-            try:
-                channeloverwrites = channel.overwrites_for(member)
-                channeloverwrites.add_reactions = None
-                await channel.set_permissions(member, overwrite=channeloverwrites)
-            except discord.Forbidden:
-                return await ctx.send("I do not have permission to block users!")
-
-        if len(blockmsg) == 0:
-            return await ctx.send("Please use a flag for the permission you would like the block!")
-
-        await self.dbblocklist(member, channel, blockmsg, "unblock")
-        await self.bot.discordLogger.channelblock("unblock", member, ctx.author, channel, blockmsg)
-        if 'embedd' in blockmsg:
-            idx = blockmsg.index('embedd')
-            blockmsg[idx] = 'embed'
-
-        await ctx.send(
-            f"{member} has been unblocked and can now {', '.join(blockmsg)} in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
+        if len(unblockmsg) > 0:
+            await self.dbblocklist(member, channel, unblockmsg, "unblock")
+            await self.bot.discordLogger.channelblock("unblock", member, ctx.author, channel, unblockmsg)
+            await ctx.send(
+                f"{member} can `{'`, `'.join(unblockmsg)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name} again.")
 
     @checks.is_staff_or_perms('Mod', manage_roles=True)
     @commands.command()
@@ -314,10 +290,43 @@ class Block(commands.Cog):
             if channel not in channellist:
                 channellist.append(channel.name)
 
-        await self.bot.db.execute("DELETE FROM channel_block WHERE guildid = $1 AND userid = $2", member.guild.id, member.id)
+        await self.bot.db.execute("DELETE FROM channel_block WHERE guildid = $1 AND userid = $2", member.guild.id,
+                                  member.id)
         await ctx.send(f"All blocks cleared for {member}")
 
         await self.bot.discordLogger.unblockalllog(member, ctx.author, channellist)
+
+    async def listblocksdb(self, member) -> discord.Embed or None:
+        blocklist = []
+        deletedchannelblocklist = []
+        record = list(await self.bot.db.fetch(
+            "SELECT blocktype, channelid, reason FROM channel_block WHERE userid = $1 AND guildid = $2", member.id,
+            member.guild.id))
+        if record is None or len(record) == 0:
+            return None
+        for blocktypes, channelid, reason in record:
+            if not member.guild.get_channel(channelid):
+                deletedchannelblocklist.append(dbBlocks(blocktypes, channelid, reason))
+            else:
+                blocklist.append(dbBlocks(blocktypes, member.guild.get_channel(channelid), reason))
+
+        embed = discord.Embed(color=member.color.value)
+        embed.set_author(name=f"Blocks for {member}:", icon_url=member.avatar_url)
+        bmsg = ""
+        for idx, block in enumerate(blocklist, start=1):
+            bmsg += f"{idx}: Channel: {block.channel.mention if isinstance(block.channel, discord.TextChannel) else block.channel.name} Restriction(s): `{', '.join(block.blocktypes)}`"
+            if block.reason:
+                bmsg += f" Reason: `{block.reason}`"
+            bmsg += "\n\n"
+
+        if deletedchannelblocklist:
+            for block in deletedchannelblocklist:
+                await self.bot.db.execute(
+                    "DELETE FROM channel_block WHERE userid = $1 AND guildid = $2 AND channelid = $3", member.id,
+                    member.guild.id, block.channel)
+
+        embed.description = bmsg
+        return embed
 
     @commands.command()
     async def listblocks(self, ctx, member: discord.Member = None):
@@ -329,39 +338,11 @@ class Block(commands.Cog):
             return await ctx.send("You cannot check other people's restrictions!")
 
         # get data from database
-        blocklist = []
-        deletedchannelblocklist = []
-        record = list(await self.bot.db.fetch(
-            "SELECT blocktype, channelid, reason FROM channel_block WHERE userid = $1 AND guildid = $2", member.id,
-            ctx.guild.id))
-        if record is None or len(record) == 0:
+        embed = await self.listblocksdb(member)
+        if not embed:
             embed = discord.Embed(color=member.color.value)
             embed.set_author(name=f"Blocks for {member}", icon_url=member.avatar_url)
             embed.description = "There are none!"
-            return await ctx.send(embed=embed)
-        for blocktypes, channelid, reason in record:
-            if not ctx.guild.get_channel(channelid):
-                deletedchannelblocklist.append(dbBlocks(blocktypes, channelid, reason))
-            else:
-                blocklist.append(dbBlocks(blocktypes, ctx.guild.get_channel(channelid), reason))
-
-        embed = discord.Embed(color=member.color.value)
-        embed.set_author(name=f"Blocks for {member}:", icon_url=member.avatar_url)
-        bmsg = ""
-        for idx, block in enumerate(blocklist, start=1):
-            bmsg += f"{idx}: Channel: {block.channel.mention if isinstance(block.channel, discord.TextChannel) else block.channel.name} Restriction(s): `{'ing, '.join(block.blocktypes)}ing`"
-            if block.reason:
-                bmsg += f" Reason: `{block.reason}`"
-            bmsg += "\n\n"
-
-        if deletedchannelblocklist:
-            for block in deletedchannelblocklist:
-                await self.bot.db.execute(
-                    "DELETE FROM channel_block WHERE userid = $1 AND guildid = $2 AND channelid = $3", member.id,
-                    ctx.guild.id, block.channel)
-
-        embed.description = bmsg
-
         await ctx.send(embed=embed)
 
 

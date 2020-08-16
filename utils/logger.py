@@ -22,7 +22,7 @@ class Logger():
             'ban': "\U000026d4",
             'kick': "\U0001f462",
             'mute': "\U0001f507",
-            'unmute': "\U0001f509",
+            'unmute': "\U0001f50a",
             'warn': "\U000026a0",
             'approve': "\U0001f44d",
             "unapprove": "\U0001f44e",
@@ -137,19 +137,20 @@ class Logger():
         except errors.loggingError:
             pass
 
-    async def onjoinblock(self, member, channels: list):
+    async def onjoinblock(self, member, channels: list, embed: discord.Embed = None):
         msg = f"{self.emotes['block']} **__User Auto-Blocked On Join:__**  {member.mention} | {member} has blocked from the following channels: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
 
-        await self.dispatch('modlogs', member.guild, 'block', msg)
+        await self.dispatch('modlogs', member.guild, 'block', msg, embed)
 
     async def unblockalllog(self, member, author, channels: list):
         msg = f"{self.emotes['unblock']} **__User Unblocked Fully:__** {author.mention} has removed all blocks on {member.mention} | {member}. Blocked channels were: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
 
         await self.dispatch('modlogs', member.guild, 'unblock', msg)
+
     # TODO add timed functionality
     async def channelblock(self, logtype: str, member: discord.Member, author: discord.Member,
                            channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel],
-                           blocktype: typing.List[str], reason: str = None) -> str:
+                           blockmsg: typing.List[str], reason: str = None) -> str:
         """Logs channel blocks"""
         channelmsg = ""
         if isinstance(channel, discord.CategoryChannel):
@@ -157,15 +158,7 @@ class Logger():
         else:
             channelmsg = f"{channel.mention if isinstance(channel, discord.TextChannel) else channel.name}"
 
-        blockmsg = ""
-        if len(blocktype) > 1:
-            for i in blocktype:
-                blockmsg += f"{i}ing, "
-            blockmsg.rstrip(", ")
-        else:
-            blockmsg = f"{blocktype[0]}ing"
-
-        msg = f"{self.emotes[logtype]} **__User {logtype.title()}ed:__** {author.mention} has blocked {member.mention} | {member} from {blockmsg} in {channelmsg}\n{self.emotes['id']} User ID: {member.id}"
+        msg = f"{self.emotes[logtype]} **__User {logtype.title()}ed:__** {author.mention} has {logtype}ed {member.mention} | {member} from being able to `{'`, `'.join(blockmsg)}` in {channelmsg}\n{self.emotes['id']} User ID: {member.id}"
         if reason:
             msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
@@ -305,7 +298,7 @@ class Logger():
     async def logsetup(self, logtype: str, action: str, member: discord.Member,
                        item: typing.Union[discord.TextChannel, discord.Role], dbItem: str):
 
-        msg = f"{self.emotes[logtype]} **__{logtype.title()} {action.title()}__** {member.name}#{member.discriminator} {logtype} {escape_mentions(item.mention) if isinstance(item, discord.Role) else item.mention} to the {action}\n {self.emotes['id']} {action.title()} ID: {item.id}"
+        msg = f"{self.emotes[logtype]} **__{logtype.title()} {action.title()}__** {member.name}#{member.discriminator} {logtype} {item.name if isinstance(item, discord.Role) else item.mention} to the {action}\n {self.emotes['id']} {action.title()} ID: {item.id}"
 
         await self.dispatch(dbItem, item.guild, logtype, msg)
 
@@ -315,6 +308,20 @@ class Logger():
         msg = f"{self.emotes[logtype]} **__{enabledisable.title()} {action.title()}:__** {member.name}#{member.discriminator} {enabledisable} {action}"
 
         await self.dispatch(dbItem, member.guild, logtype, msg)
+
+    async def approvalConfig(self, author: discord.Member, approvalChannel: discord.TextChannel, approvalRole: discord.Role):
+        msg = f"**__Approval System Configured:__** {author.mention} configured an approval system with {approvalChannel.mention} as the gateway channel and {approvalRole.name} as the role name.\n{self.emotes['id']} Channel ID: {approvalChannel.id}\n{self.emotes['id']} Role ID: {approvalRole.id}"
+        await self.dispatch('modlogs', approvalChannel.guild, 'approval system', msg)
+
+    async def approvalDeletion(self, author: discord.Member, approvalChannel: discord.TextChannel = None, approvalRole: discord.Role = None): # turtle i will find you and i will make you step on a lego :blobgun:
+        chanrolemsg = ""
+        if approvalRole:
+            chanrolemsg += f"Approval Role: `{approvalRole.name}`"
+        if approvalChannel:
+            chanrolemsg += f", Approval Channel: `{approvalChannel.name}`"
+        msg = f"**__Approval System Removed:__** {author.mention} has removed the approval system. {chanrolemsg}"
+
+        await self.dispatch('modlogs', author.guild, 'approval system', msg)
 
     async def notice(self, logtype, author: discord.Member, message, dbChan: str):
         """Misc logging"""

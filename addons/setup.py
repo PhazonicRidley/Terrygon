@@ -1,7 +1,7 @@
 import discord
 import yaml
 from discord.ext import commands, flags
-from utils import checks, errors, common
+from utils import checks, errors, common, paginator
 import typing
 import logzero
 from logzero import logger as consolelogger
@@ -41,8 +41,11 @@ class Setup(commands.Cog):
                 if roleid is None:
                     return -1
                 try:
+                    role = ctx.guild.get_role(roleid)
+                    if not role:
+                        raise errors.loggingError("Deleted role", ctx.guild)
                     await self.bot.discordLogger.logsetup("unset", f"{roletype} role", ctx.author,
-                                                          ctx.guild.get_role(roleid), 'modlogs')
+                                                          role, 'modlogs')
                 except errors.loggingError:
                     consolelogger.warning(f"Failed to log {roletype} database unset on server {ctx.guild.name}.")
                 await conn.execute(f"UPDATE roles SET {roletype} = NULL WHERE guildid = $1", ctx.guild.id)
@@ -61,7 +64,7 @@ class Setup(commands.Cog):
                                                               role.id), 'modlogs')
                 except errors.loggingError:
                     consolelogger.warning(f"Failed to log {roletype} database set! on server {ctx.guild.name}")
-                
+
                 return 0
 
     async def setunsetchannels(self, ctx, channel: typing.Union[discord.TextChannel, None], channeltype, mode):
@@ -95,15 +98,17 @@ class Setup(commands.Cog):
                     await ctx.send("Please enter a channel to set")
                     return -1
 
-                await conn.execute(f"UPDATE log_channels SET {channeltype} = $1 WHERE guildid = $2", channel.id, ctx.guild.id)
+                await conn.execute(f"UPDATE log_channels SET {channeltype} = $1 WHERE guildid = $2", channel.id,
+                                   ctx.guild.id)
 
                 try:
-                    await self.bot.discordLogger.logsetup("set", f"{channeltype} channel", ctx.author, channel, channeltype)
+                    await self.bot.discordLogger.logsetup("set", f"{channeltype} channel", ctx.author, channel,
+                                                          channeltype)
                 except errors.loggingError:
                     consolelogger.warning(f"Failed log setting the {channel} log channel on server: {ctx.guild.name}")
-                
+
                 return 0
-            
+
             else:
                 raise commands.BadArgument("Unknown mode, valid modes are set and unset!")
 
@@ -128,7 +133,8 @@ class Setup(commands.Cog):
         """
         activeFlags = {l for l in logchannels.items() if l[1]}
         if not activeFlags:
-            return await ctx.send("Please specify a logchannel type you would like to add, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
+            return await ctx.send(
+                "Please specify a logchannel type you would like to add, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
 
         else:
             msg = ""
@@ -136,7 +142,7 @@ class Setup(commands.Cog):
                 for chantype, channel in activeFlags:
                     if await self.setunsetchannels(ctx, channel, chantype, 'set') == 0:
                         msg += f"{chantype.title()}, "
-                
+
             if msg:
                 await ctx.send(msg.rstrip(", ") + " have been set!")
             else:
@@ -151,55 +157,52 @@ class Setup(commands.Cog):
     async def channelunset(self, ctx, **channeltype):
         activeFlags = [l[0] for l in channeltype.items() if l[1]]
         if not activeFlags:
-            await ctx.send("Please specify a logchannel type you would like to remove, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
+            await ctx.send(
+                "Please specify a logchannel type you would like to remove, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
         else:
             msg = ""
             async with ctx.channel.typing():
                 for logtype in activeFlags:
                     if await self.setunsetchannels(ctx, None, logtype, 'unset') == 0:
                         msg += f"{logtype.title()}, "
-            
+
             if msg:
                 await ctx.send(msg.rstrip(", ") + " have been unset!")
             else:
                 # should never appear
                 await ctx.send("Unable to unset any channels to the database!")
+
     # roles
 
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @commands.group(invoke_without_command=True, aliases=['serverrole'])
-    async def dbrole(self, ctx):
+    @commands.group(invoke_without_command=True, aliases=['serverrole', 'dbrole'])
+    async def staffrole(self, ctx):
         """To set or unset a role to the database as a staff role, please use [p]dbrole <set|unset> <type of staff role> <role>. valid options are: `adminrole`, `approvedrole`, `modrole`, `mutedrole`, `ownerrole`"""
         await ctx.send_help(ctx.command)
 
-
     @checks.is_staff_or_perms("Owner", administrator=True)
     @flags.add_flag("--adminrole", type=discord.Role)
-    @flags.add_flag("--approvedrole", type=discord.Role)
     @flags.add_flag("--modrole", type=discord.Role)
-    @flags.add_flag("--mutedrole", type=discord.Role)
     @flags.add_flag("--ownerrole", type=discord.Role)
-    @dbrole.command(cls=flags.FlagCommand, aliases=['set'])
+    @staffrole.command(cls=flags.FlagCommand, aliases=['set'])
     async def roleset(self, ctx, **role_flags):
-        """Sets a role to be used in the database, these include staff roles, the approved role if you use an approval system, and the muted role
+        """Sets a staff role to be used in the database
 
         - `--adminrole` Role for administrators.
         - `--ownerrole` Role for owners.
         - `--modrole` Role for moderators
-        - `--approvedrole` Role users will get when they are approved to join a server fully.
-        - `--mutedrole` Role used to mute users.
         """
         activeFlags = {l for l in role_flags.items() if l[1]}
         if not activeFlags:
-            return await ctx.send("Please specify a database role you would like to add, flags are `--adminrole`, `--approvedrole`, `--modrole`, `--mutedrole`, and `--ownerrole`")
-
+            return await ctx.send(
+                "Please specify a database role you would like to add, flags are `--adminrole`, `--modrole`, and `--ownerrole`")
         else:
             msg = ""
             async with ctx.channel.typing():
                 for roletype, role in activeFlags:
                     if await self.setunsetrole(ctx, role, roletype, 'set') == 0:
                         msg += f"{roletype.title()}, "
-            
+
             if msg:
                 await ctx.send(msg.rstrip(", ") + " have been set!")
             else:
@@ -207,31 +210,27 @@ class Setup(commands.Cog):
 
     @checks.is_staff_or_perms("Owner", administrator=True)
     @flags.add_flag("--adminrole", default=None, action="store_true")
-    @flags.add_flag("--approvedrole", default=None, action="store_true")
     @flags.add_flag("--modrole", default=None, action="store_true")
-    @flags.add_flag("--mutedrole", default=None, action="store_true")
-    @flags.add_flag("--ownerrole", default=None, action="store_true")    
-    @dbrole.command(cls=flags.FlagCommand, aliases=['unset'])
+    @flags.add_flag("--ownerrole", default=None, action="store_true")
+    @staffrole.command(cls=flags.FlagCommand, aliases=['unset'])
     async def roleunset(self, ctx, **role_flags):
         activeFlags = {l for l in role_flags.items() if l[1]}
         if not activeFlags:
-            return await ctx.send("Please specify a database role you would like to add, flags are `--adminrole`, `--approvedrole`, `--modrole`, `--mutedrole`, and `--ownerrole`")
+            return await ctx.send(
+                "Please specify a database role you would like to add, flags are `--adminrole`, `--modrole`, and `--ownerrole`")
         else:
             msg = ""
             async with ctx.channel.typing():
                 for roletype, role in activeFlags:
                     if await self.setunsetrole(ctx, None, roletype, 'unset') == 0:
                         msg += f"{roletype.title()}, "
-            
+
             if msg:
                 await ctx.send(msg.rstrip(", ") + " have been unset!")
             else:
                 # should never appear
                 await ctx.send("Unable to unset any roles to the database!")
 
-    @checks.is_staff_or_perms("Owner", administrator=True)
-    @commands.guild_only()
-    @commands.command()
     async def togglejoinlogs(self, ctx):
         async with self.bot.db.acquire() as conn:
             memberlogschannelid = await conn.fetchval("SELECT memberlogs FROM log_channels WHERE guildid =  $1",
@@ -251,9 +250,6 @@ class Setup(commands.Cog):
                 await ctx.send("Join and leave logs are now on!")
                 await self.bot.discordLogger.togglelogsetup("set", "join leave logs", ctx.author, 'memberlogs')
 
-    @checks.is_staff_or_perms("Owner", administrator=True)
-    @commands.guild_only()
-    @commands.command()
     async def togglecoremessagelogs(self, ctx):
         async with self.bot.db.acquire() as conn:
             memberlogschannelid = await conn.fetchval("SELECT messagelogs FROM log_channels WHERE guildid =  $1",
@@ -272,6 +268,97 @@ class Setup(commands.Cog):
                                    ctx.guild.id)
                 await ctx.send("Message edits and deletes are now being logged!")
                 await self.bot.discordLogger.togglelogsetup("set", "core message logs", ctx.author, 'messagelogs')
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms('Owner', administrator=True)
+    @commands.group(invoke_without_command=True)
+    async def logs(self, ctx):
+        """Command used to manage all logging systems. You can set and unset channels, modroles, and toggle which things you would like to log for your server"""
+        await ctx.send_help(ctx.command)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms('Owner', administrator=True)
+    @logs.command()
+    async def joinleave(self, ctx):
+        """Enables or disables joining and leaving logs"""
+        await self.togglejoinlogs(ctx)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms('Owner', administrator=True)
+    @logs.command()
+    async def editsdeletes(self, ctx):
+        """Enables or disables message edits or deletions"""
+        await self.togglecoremessagelogs(ctx)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms('Mod', manage_roles=True)
+    @commands.group(invoke_without_command=True)
+    async def mutedrole(self, ctx):
+        """Manage muted role"""
+        await ctx.send_help(ctx.command)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms('Mod', manage_roles=True)
+    @mutedrole.command(aliases=['set'])
+    async def mutedroleset(self, ctx, role: discord.Role = None):
+        out = await self.mutedrolesetup(ctx, role)
+        if out:
+            await ctx.send(out)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms('Admin', manage_guild=True)
+    @mutedrole.command(aliases=['unset'])
+    async def mutedroleunset(self, ctx):
+        """Unset's the muted role (Admin+, manage server)"""
+        mutedroleid = await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id)
+        if not mutedroleid:
+            return await ctx.send("No mutedrole saved in the database.")
+        await self.setunsetrole(ctx, None, 'mutedrole', 'unset')
+        res, msg = await paginator.YesNoMenu("Muted role, unset, would you like to delete it?").prompt(ctx)
+        if res:
+            try:
+                await ctx.guild.get_role(mutedroleid).delete()
+                await msg.edit(content="Role deleted!")
+            except discord.Forbidden:
+                return await msg.edit(content="I cannot delete roles!")
+        else:
+            await msg.edit(content="Role not deleted.")
+
+    async def mutedrolesetup(self, ctx, role: discord.Role = None):
+        if role is None:
+            res, msg = await paginator.YesNoMenu("No muted role detected, would you like to create one?").prompt(ctx)
+            if res:
+                try:
+                    role = await ctx.guild.create_role(name='Muted', reason="New role for muting members")
+                except discord.Forbidden:
+                    return "I am unable to create roles, please check permissions!"
+                await msg.edit(
+                    content="New role named `Muted` created, added to the database, and set up with all the channels")
+            else:
+                return await msg.edit(content="Canceled")
+        else:
+            await ctx.send("Muted role set!")
+
+        # first go thru the categories
+        try:
+            for category in ctx.guild.categories:
+                await category.set_permissions(role, send_messages=False, connect=False)
+
+            # next the remaining channels
+            for tc in ctx.guild.text_channels:
+                if not tc.permissions_synced:
+                    await tc.set_permissions(role, send_messages=False)
+
+            for vc in ctx.guild.voice_channels:
+                if not vc.permissions_synced:
+                    await vc.set_permissions(role, connect=False)
+            for member in ctx.guild.members:
+                if member.id == await self.bot.db.fetchval("SELECT userid FROM mutes WHERE guildid = $1", ctx.guild.id):
+                    await member.add_roles(role, reason="Carrying over mutes")
+        except discord.Forbidden:
+            return "Unable to set channel permissions, please check my permissions!"
+
+        await self.setunsetrole(ctx, role, 'mutedrole', 'set')
 
     @commands.guild_only()
     @commands.group(invoke_without_command=True)
@@ -310,27 +397,30 @@ class Setup(commands.Cog):
             elif prefix not in guildprefixes:
                 return await ctx.send("This prefix is not saved to this guild!")
             else:
-                await conn.execute("UPDATE guild_settings SET prefixes = array_remove(prefixes, $1) WHERE guildid = $2", prefix, ctx.guild.id)
+                await conn.execute("UPDATE guild_settings SET prefixes = array_remove(prefixes, $1) WHERE guildid = $2",
+                                   prefix, ctx.guild.id)
                 await ctx.send("Prefix removed!")
 
     @prefix.command()
     async def list(self, ctx):
         """List the guild's custom prefixes"""
-        guildprefixes = await self.bot.db.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1", ctx.guild.id)
+        guildprefixes = await self.bot.db.fetchval("SELECT prefixes FROM guild_settings WHERE guildid = $1",
+                                                   ctx.guild.id)
         embed = discord.Embed(title=f"Prefixes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
         if guildprefixes:
             prefixstr = ""
             for prefix in guildprefixes:
                 prefixstr += f"- `{prefix}`\n"
-            embed.set_footer(text=f"{len(guildprefixes)} custom guild prefixes saved" if len(guildprefixes) != 1 else "1 custom guild prefix saved")
+            embed.set_footer(text=f"{len(guildprefixes)} custom guild prefixes saved" if len(
+                guildprefixes) != 1 else "1 custom guild prefix saved")
 
         else:
             prefixstr = "No prefixes saved"
 
         embed.description = prefixstr
-        embed.add_field(name="Global default prefixes", value=f"- {ctx.me.mention}\n- `{self.bot.readConfig('default_prefix')}`", inline=False)
+        embed.add_field(name="Global default prefixes",
+                        value=f"- {ctx.me.mention}\n- `{self.bot.readConfig('default_prefix')}`", inline=False)
         await ctx.send(embed=embed)
-
 
     @checks.is_bot_owner()
     @commands.command()
@@ -341,7 +431,6 @@ class Setup(commands.Cog):
             config['default_prefix'] = prefix
             yaml.dump(config, f)
         await ctx.send("Changed default global prefix")
-
 
 
 def setup(bot):

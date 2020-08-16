@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, flags
 from logzero import setup_logger
 import typing
-from utils import checks, common
+from utils import checks, common, paginator
 
 # set up logging instance
 modmoduleconsolelogger = setup_logger(name='mod command logs', logfile='logs/mod.log', maxBytes=1000000)
@@ -23,17 +23,30 @@ class Mod(commands.Cog):
             return
 
         async with self.bot.db.acquire() as conn:
-            mutedroleid = (await conn.fetchrow("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id))[0]
+            mutedroleid = await conn.fetchval("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id)
             if mutedroleid is None:
-                await ctx.send("Muted role not configured! Please configure it with dbrole set muterole <roleid>")
-                return
+                cog = self.bot.get_cog('Setup')
+                if not cog:
+                    return await ctx.send(
+                        "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
+                await cog.mutedrolesetup(ctx)
 
+            mutedroleid = await conn.fetchval("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id)
+            if mutedroleid is None:
+                return await ctx.send("No muted role found, please run the setup wizard for the muted role again")
             muted_role = ctx.guild.get_role(mutedroleid)
+            if muted_role is None:
+                await conn.execute("UPDATE roles SET mutedrole = NULL WHERE guildid = $1", ctx.guild.id)
+                cog = self.bot.get_cog('Setup')
+                if not cog:
+                    return await ctx.send(
+                        "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
+                await cog.mutedrolesetup(ctx)
 
             try:
-                if muted_role in member.roles or (
-                        await conn.fetchrow("SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
-                                            ctx.guild.id))[0] == member.id:
+                if muted_role in member.roles or await conn.fetchval(
+                        "SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
+                        ctx.guild.id) == member.id:
                     await ctx.send("User is already muted")
                     return
             except TypeError:
@@ -62,7 +75,7 @@ class Mod(commands.Cog):
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command()
-    async def unmute(self, ctx, member: discord.Member, *, reason: str = None):
+    async def unmute(self, ctx, member: discord.Member):
         modandbotprotection = await checks.modAndBotProtection(self.bot, ctx, member, "unmute")
         if modandbotprotection is not None:
             await ctx.send(modandbotprotection)
@@ -71,10 +84,19 @@ class Mod(commands.Cog):
         async with self.bot.db.acquire() as conn:
             mutedroleid = (await conn.fetchrow("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id))[0]
             if mutedroleid is None:
-                await ctx.send("Muted role not configured! Please configure it with dbrole set muterole <roleid>")
-                return
+                cog = self.bot.get_cog('Setup')
+                if not cog:
+                    return await ctx.send(
+                        "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
+                await cog.mutedrolesetup(ctx)
 
             muted_role = ctx.guild.get_role(mutedroleid)
+            if muted_role is None:
+                cog = self.bot.get_cog('Setup')
+                if not cog:
+                    return await ctx.send(
+                        "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
+                await cog.mutedrolesetup(ctx)
 
             try:
                 if not muted_role in member.roles or not (await conn.fetchrow(
@@ -93,10 +115,9 @@ class Mod(commands.Cog):
 
             await conn.execute("DELETE FROM mutes WHERE userID = $1 AND guildID = $2", member.id, ctx.guild.id)
 
-            await self.bot.discordLogger.modlogs(ctx, 'unmute', member, ctx.author, reason)
+            await self.bot.discordLogger.modlogs(ctx, 'unmute', member, ctx.author)
 
             await ctx.send(f"{member} has been unmuted.")
-
 
     # lockdown commands
     @checks.is_staff_or_perms("Mod", manage_channels=True)

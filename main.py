@@ -89,7 +89,7 @@ class Terrygon(commands.Bot):
 
         elif isinstance(error, commands.CommandInvokeError) and isinstance(error.original, discord.HTTPException):
             await ctx.send(
-                f"An HTTP {error.original.status} has occurred for the following reason: `{error.original.text}`")
+                f"An HTTP {error.original.status} error has occurred for the following reason: `{error.original.text}`")
 
         elif isinstance(error, (
                 commands.MissingRequiredArgument, commands.BadArgument, commands.BadUnionArgument,

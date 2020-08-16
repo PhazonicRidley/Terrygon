@@ -55,6 +55,7 @@ CREATE SCHEMA IF NOT EXISTS terrygon AUTHORIZATION terrygon; -- Change this line
     (
         guildID BIGINT PRIMARY KEY,
         approvalSystem BOOLEAN DEFAULT FALSE,
+        approvalchannel BIGINT,
         enableJoinLeaveLogs BOOLEAN DEFAULT TRUE,
         enableCoreMessageLogs BOOLEAN DEFAULT TRUE,
         prefixes TEXT[]
