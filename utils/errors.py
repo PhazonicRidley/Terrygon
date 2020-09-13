@@ -47,6 +47,7 @@ class noStaffRolesSaved(commands.CommandError):
     def __init__(self):
         super().__init__(message="No staff roles stored for this guild")
 
+
 class untrustedError(commands.CommandError):
     def __init__(self):
         super().__init__(message="User is not in trusted userlist or not staff")

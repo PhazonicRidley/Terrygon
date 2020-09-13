@@ -12,7 +12,7 @@ from logzero import setup_logger
 import subprocess
 import platform
 
-botownerconsolelogger = setup_logger(logfile="logs/botowner.log", maxBytes=1000000)
+botowner_console_logger = setup_logger(logfile="logs/botowner.log", maxBytes=1000000)
 
 
 class BotOwner(commands.Cog):
@@ -25,36 +25,36 @@ class BotOwner(commands.Cog):
 
     @checks.is_bot_owner()
     @commands.command()
-    async def unloadaddon(self, ctx, addonin: str):
+    async def unloadaddon(self, ctx, addon_in: str):
         """Unloads an addon.(Bot Owners only)"""
-        addon = addonin.lower()
+        addon = addon_in.lower()
         if addon == "botowner":
-            await ctx.send("Cannot unload base commands")
+            await ctx.send("Cannot unload this addon commands")
             return
 
         try:
             addon = "addons." + addon
             self.bot.unload_extension(addon)
-            botownerconsolelogger.warning(f"{addonin} unloaded")
-            await ctx.send(f' {addonin} addon unloaded.')
+            botowner_console_logger.warning(f"{addon_in} unloaded")
+            await ctx.send(f' {addon_in} addon unloaded.')
 
         except commands.ExtensionNotFound:
-            return await ctx.send(f" Cannot find {addonin} addon, is it in the `addons` folder?")
+            return await ctx.send(f" Cannot find {addon_in} addon, is it in the `addons` folder?")
 
         except commands.ExtensionNotLoaded:
-            return await ctx.send(f" {addonin} addon is not loaded!")
+            return await ctx.send(f" {addon_in} addon is not loaded!")
 
         except Exception as e:
             # end all catch for errrors
-            errmsg = "Failed to unload {}: {}".format(addon, "".join(format_exception(type(e), e, e.__traceback__)))
-            botownerconsolelogger.error(errmsg)
+            err_msg = "Failed to unload {}: {}".format(addon, "".join(format_exception(type(e), e, e.__traceback__)))
+            botowner_console_logger.error(err_msg)
             await ctx.send('💢 Error trying to unload the addon:\n```\n{}: {}\n```'.format(type(e).__name__, e))
 
     @checks.is_bot_owner()
     @commands.command(aliases=['reloadaddon'], )
-    async def loadaddon(self, ctx, addonin: str):
+    async def loadaddon(self, ctx, addon_in: str):
         """(Re)loads an addon. (Bot Owners only)"""
-        addon = "addons." + addonin.lower()
+        addon = "addons." + addon_in.lower()
         try:
             self.bot.unload_extension(addon)
             reloading = True
@@ -63,24 +63,24 @@ class BotOwner(commands.Cog):
 
         try:
             self.bot.load_extension(addon)
-            botownerconsolelogger.info(f"{addon} loaded")
-            await ctx.send(f" {addonin} addon reloaded." if reloading else f"{addonin} addon loaded")
+            botowner_console_logger.info(f"{addon} loaded")
+            await ctx.send(f" {addon_in} addon reloaded." if reloading else f"{addon_in} addon loaded")
 
         except commands.ExtensionNotFound:
-            return await ctx.send(f" {addonin} was not found, is it in the `addons` folder?")
+            return await ctx.send(f" {addon_in} was not found, is it in the `addons` folder?")
 
         except Exception as e:
             # end all catch for errors
-            errmsg = " Failed to load {}: {}".format(addon, "".join(format_exception(type(e), e, e.__traceback__)))
-            botownerconsolelogger.exception(errmsg)
+            err_msg = " Failed to load {}: {}".format(addon, "".join(format_exception(type(e), e, e.__traceback__)))
+            botowner_console_logger.exception(err_msg)
             await ctx.send('💢 Error trying to load the addon:\n```\n{}: {}\n```'.format(type(e).__name__, e))
 
     @checks.is_bot_owner()
     @commands.command(aliases=['reloadcog'], )
-    async def loadcog(self, ctx, cogin: str):
+    async def loadcog(self, ctx, cog_in: str):
         """(Re)loads a cog. (Bot Owners only)"""
 
-        cog = "cogs." + cogin.lower()
+        cog = "cogs." + cog_in.lower()
         try:
             self.bot.unload_extension(cog)
             reloading = True
@@ -89,69 +89,69 @@ class BotOwner(commands.Cog):
 
         try:
             self.bot.load_extension(cog)
-            botownerconsolelogger.info(f" {cogin} cog loaded")
-            await ctx.send(f'✅ {cogin} cog reloaded.' if reloading else f"{cogin} cog loaded")
+            botowner_console_logger.info(f" {cog_in} cog loaded")
+            await ctx.send(f'✅ {cog_in} cog reloaded.' if reloading else f"{cog_in} cog loaded")
 
         except commands.ExtensionNotFound:
-            return await ctx.send(f" {cogin} cog cannot be found, is it in the `cogs` folder?")
+            return await ctx.send(f" {cog_in} cog cannot be found, is it in the `cogs` folder?")
 
         except Exception as e:
             # end all catch to failed loads
-            errmsg = "Failed to load {}: {}".format(cog, "".join(format_exception(type(e), e, e.__traceback__)))
-            botownerconsolelogger.exception(errmsg)
+            err_msg = "Failed to load {}: {}".format(cog, "".join(format_exception(type(e), e, e.__traceback__)))
+            botowner_console_logger.exception(err_msg)
             await ctx.send('💢 Error trying to load the cog:\n```\n{}: {}\n```'.format(type(e).__name__, e))
 
     @checks.is_bot_owner()
     @commands.command()
-    async def unloadcog(self, ctx, cogin: str):
+    async def unloadcog(self, ctx, cog_in: str):
         """Unloads an cog. (Bot Owner only)"""
         try:
-            cog = "cogs." + cogin.lower()
+            cog = "cogs." + cog_in.lower()
             self.bot.unload_extension(cog)
-            botownerconsolelogger.warning(f" {cogin} cog unloaded")
-            return await ctx.send(f"{cogin} cog has been unloaded")
+            botowner_console_logger.warning(f" {cog_in} cog unloaded")
+            return await ctx.send(f"{cog_in} cog has been unloaded")
         except commands.ExtensionNotFound:
-            return await ctx.send(f" Cannot find {cogin} cog, is it in the `cog` folder?")
+            return await ctx.send(f" Cannot find {cog_in} cog, is it in the `cog` folder?")
 
         except commands.ExtensionNotLoaded:
-            return await ctx.send(f"{cogin} cog is not loaded!")
+            return await ctx.send(f"{cog_in} cog is not loaded!")
 
         except Exception as e:
             # end all catch for errrors
-            errmsg = "Failed to unload {}: {}".format(cog, "".join(format_exception(type(e), e, e.__traceback__)))
-            botownerconsolelogger.exception(errmsg)
+            err_msg = "Failed to unload {}: {}".format(cog, "".join(format_exception(type(e), e, e.__traceback__)))
+            botowner_console_logger.exception(err_msg)
             await ctx.send('💢 Error trying to unload the cog:\n```\n{}: {}\n```'.format(type(e).__name__, e))
 
     @commands.command(aliases=['listext', 'listextention', 'listcogs', 'listaddons'], )
     async def listextentions(self, ctx):
         """Lists modules that are loaded and unloaded"""
-        unloadedaddons = [file[:-3] for file in os.listdir('addons') if file.endswith(".py")]
-        unloadedcogs = [file[:-3] for file in os.listdir('cogs') if file.endswith(".py")]
-        loaded_extentions = self.bot.extensions
-        loadedaddonmsg = ""
-        unloadedaddonmsg = ""
-        unloadedcogsmsg = ""
-        loadedcogsmsg = ""
-        for extention in loaded_extentions:
-            if re.fullmatch('^addons.*', extention):
-                loadedaddonmsg += f":white_check_mark: {extention[7:]}\n"
-                if extention[7:] in unloadedaddons:
-                    unloadedaddons.remove(extention[7:])
+        unloaded_addons = [file[:-3] for file in os.listdir('addons') if file.endswith(".py")]
+        unloaded_cogs = [file[:-3] for file in os.listdir('cogs') if file.endswith(".py")]
+        loaded_extensions = self.bot.extensions
+        loaded_addon_msg = ""
+        unloaded_addon_msg = ""
+        unloaded_cogs_msg = ""
+        loaded_cogs_msg = ""
+        for extension in loaded_extensions:
+            if re.fullmatch('^addons.*', extension):
+                loaded_addon_msg += f":white_check_mark: {extension[7:]}\n"
+                if extension[7:] in unloaded_addons:
+                    unloaded_addons.remove(extension[7:])
 
-            elif re.fullmatch('^cogs.*', extention):
-                loadedcogsmsg += f":white_check_mark: {extention[5:]}\n"
-                if (extention[5:]) in unloadedcogs:
-                    unloadedcogs.remove(extention[5:])
+            elif re.fullmatch('^cogs.*', extension):
+                loaded_cogs_msg += f":white_check_mark: {extension[5:]}\n"
+                if (extension[5:]) in unloaded_cogs:
+                    unloaded_cogs.remove(extension[5:])
 
-        for addon in unloadedaddons:
-            unloadedaddonmsg += f":x: {addon}\n"
+        for addon in unloaded_addons:
+            unloaded_addon_msg += f":x: {addon}\n"
 
-        for cog in unloadedcogs:
-            unloadedcogsmsg += f":x: {cog}\n"
+        for cog in unloaded_cogs:
+            unloaded_cogs_msg += f":x: {cog}\n"
 
         embed = discord.Embed(title=f"Extentions for {self.bot.user.name}", color=self.bot.user.color.value)
-        embed.add_field(name="**Addons**", value=loadedaddonmsg + unloadedaddonmsg, inline=True)
-        embed.add_field(name="**Custom Cogs**", value=loadedcogsmsg + unloadedcogsmsg, inline=True)
+        embed.add_field(name="**Addons**", value=loaded_addon_msg + unloaded_addon_msg, inline=True)
+        embed.add_field(name="**Custom Cogs**", value=loaded_cogs_msg + unloaded_cogs_msg, inline=True)
         await ctx.send(embed=embed)
 
     @checks.is_bot_owner()
@@ -160,13 +160,13 @@ class BotOwner(commands.Cog):
         """Shutdown the bot (Bot Owners only)"""
 
         await ctx.send("Shutting down")
-        botownerconsolelogger.info(f"Bot shutdown by {ctx.author}")
+        botowner_console_logger.info(f"Bot shutdown by {ctx.author}")
         # close db connection pool
         try:
             await self.bot.db.close()
-            botownerconsolelogger.info("Closed database connection pool gracefully")
+            botowner_console_logger.info("Closed database connection pool gracefully")
         except Exception:
-            botownerconsolelogger.error("Database connection pool had trouble quitting!")
+            botowner_console_logger.error("Database connection pool had trouble quitting!")
 
         finally:
             if platform.system() == 'Linux':
@@ -228,7 +228,7 @@ class BotOwner(commands.Cog):
                     table = tabulate(res, res[0].keys(), tablefmt='psql')
                 except IndexError:
                     table = res
-                if len(res) > 2000:
+                if len(res) > 1800:
                     await ctx.send("Output is too big!")
                     return
                 else:

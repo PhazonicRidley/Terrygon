@@ -1,149 +1,163 @@
 import discord
 from discord.ext import commands, menus
 import json
-from utils import checks, paginator
+from utils import checks, paginator, errors
 import webcolors
-import re
 import typing
 import io
 from discord.utils import escape_mentions
 
+
 class Colors(commands.Cog):
     """For handling user color modes in two different modes depending on the guild"""
+
     def __init__(self, bot):
         self.bot = bot
 
     async def cog_before_invoke(self, ctx):
-        await self.setupdbguild(ctx.guild.id)
+        await self.setup_db_guild(ctx.guild.id)
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        if member.guild.member_count > 100:
-            await self.bot.db.execute("UPDATE colors SET colormode = communal_role_data WHERE guildid = $1", member.guild.id)
-            await member.guild.owner.send(
-                "Your server has reached over 100 members, I have switched your color role mode to communal. I recommend setting up communal color roles with <this command> and making an announcement.")
+        async with self.bot.db.acquire() as conn:
+            if await conn.fetchval("SELECT colormode FROM colors WHERE guildid = $1", member.guild.id):
+                if member.guild.member_count > 100:
+                    await conn.execute("UPDATE colors SET colormode = communal_role_data WHERE guildid = $1",
+                                       member.guild.id)
+                    await member.guild.owner.send(
+                        "Your server has reached over 100 members, I have switched your color role mode to communal. I recommend setting up communal color roles with <this command> and making an announcement.")
 
-        if (await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", member.guild.id)) == 'personal':
-            try:
-                roleid = (json.loads(
-                    await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
-                                               str(member.id), member.guild.id)))['roleid']
-                role = member.guild.get_role(roleid)
-                await member.add_roles(role)
-            except TypeError:
-                pass
+                try:
+                    role_id = (json.loads(
+                        await conn.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
+                                            str(member.id), member.guild.id)))['roleid']
+                    role = member.guild.get_role(role_id)
+                    await member.add_roles(role)
+                except TypeError:
+                    pass
 
     # communal roles commands
     @commands.group(aliases=['communalcolor', 'communalcolour'], invoke_without_command=True)
     @commands.guild_only()
     async def communalcolors(self, ctx):
-        """Commands related to the communal color role system"""
+        """Commands related to the communal color role system (Only needed by servers that use the communal color system"""
         await ctx.send_help(ctx.command)
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @communalcolors.command()
-    async def add(self, ctx, keyword, role: typing.Union[discord.Role, str], colorhex: str = None):
-        """Sets a color role, adds one if it doesnt exist (Requires you to be able to manage roles)"""
+    async def add(self, ctx, keyword, role: typing.Union[discord.Role, str], color_hex: str = None):
+        """Sets a color role, adds one if it doesnt exist (Moderators or manage roles)"""
+
+        if await self.check_color_mode(ctx.guild, 'communal'):
+            return await ctx.send("Current color mode is not communal, thus you have no need for this!")
+
         if isinstance(role, discord.Role):
-            colorhex = (str(hex(role.color.value)))[2:]
+            color_hex = (str(hex(role.color.value)))[2:]
 
         else:
-            if colorhex is None:
+            if color_hex is None:
                 raise commands.MissingRequiredArgument
 
         keyword = escape_mentions(keyword)
-        if colorhex[0] != '#':
-            colorhex = '#' + colorhex
+        if color_hex[0] != '#':
+            color_hex = '#' + color_hex
 
-        if len(colorhex) != 7:
+        if len(color_hex) != 7:
             return await ctx.send("Invalid color hex, please try again")
 
         if isinstance(role, discord.Role):
-            rolejsonobj = json.dumps({
+            role_json = json.dumps({
                 'roleid': role.id,
-                'colorhex': colorhex
+                'colorhex': color_hex
             })
-            finalmsg = f"{role.name} set as color role with hex, {colorhex}, use `.colorme {role.name}` to toggle it"
+            final_msg = f"{role.name} set as color role with hex, {color_hex}, use `.colorme {role.name}` to toggle it"
         else:
-            role = await ctx.guild.create_role(name=role, color=discord.Color.from_rgb(*webcolors.hex_to_rgb(colorhex)))
-            rolejsonobj = json.dumps({
+            role = await ctx.guild.create_role(name=role,
+                                               color=discord.Color.from_rgb(*webcolors.hex_to_rgb(color_hex)))
+            role_json = json.dumps({
                 'roleid': role.id,
-                'colorhex': colorhex
+                'colorhex': color_hex
             })
-            finalmsg = f"Created role {role.name} and set it with color hex: {colorhex} `.colorme {role.name}` to toggle it"
+            final_msg = f"Created role {role.name} and set it with color hex: {color_hex} `[p]color {role.name}` to toggle it"
 
         async with self.bot.db.acquire() as conn:
-            currentcomcolors = await conn.fetchval("SELECT communal_role_data FROM colors WHERE guildid = $1",
-                                                   ctx.guild.id)
-            if currentcomcolors is None:
-                finalquery = "UPDATE colors SET communal_role_data = jsonb_build_object($1::TEXT, $2::jsonb) WHERE guildid = $3"
+            current_com_colors = await conn.fetchval("SELECT communal_role_data FROM colors WHERE guildid = $1",
+                                                     ctx.guild.id)
+            if current_com_colors is None:
+                final_query = "UPDATE colors SET communal_role_data = jsonb_build_object($1::TEXT, $2::jsonb) WHERE guildid = $3"
             else:
-                finalquery = "UPDATE colors SET communal_role_data = communal_role_data::jsonb || jsonb_build_object($1::TEXT, $2::jsonb) WHERE guildid = $3"
+                final_query = "UPDATE colors SET communal_role_data = communal_role_data::jsonb || jsonb_build_object($1::TEXT, $2::jsonb) WHERE guildid = $3"
                 # check for duplicate names
-                if keyword in currentcomcolors.keys():
+                if keyword in current_com_colors.keys():
                     return await ctx.send("Cannot duplicate color role keywords")
 
-            await conn.execute(finalquery, keyword, rolejsonobj, ctx.guild.id)
+            await conn.execute(final_query, keyword, role_json, ctx.guild.id)
         await ctx.send(f"Added communal color {keyword}")
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @communalcolors.command(aliases=['del'])
     async def delete(self, ctx, keyword: str):
-        """Removes a communal color and deletes the role if desired (Requires you to be able to manage roles)"""
+        """Removes a communal color and deletes the role if desired (Moderators or manage roles)"""
+        if await self.check_color_mode(ctx.guild, 'communal'):
+            return await ctx.send("Current color mode is not communal, thus you have no need for this!")
+
         async with self.bot.db.acquire() as conn:
             if await conn.fetchval("SELECT communal_role_data->>$1 FROM colors WHERE guildid = $2", keyword,
                                    ctx.guild.id) is None:
                 return await ctx.send("Color does not exist in database for this server!")
             else:
-                roleid = (json.loads(
+                role_id = (json.loads(
                     await conn.fetchval("SELECT communal_role_data->>$1 FROM colors WHERE guildid = $2", keyword,
                                         ctx.guild.id)))['roleid']
-                role = ctx.guild.get_role(roleid)
+                role = ctx.guild.get_role(role_id)
                 res, msg = await paginator.YesNoMenu("Do you want to delete the role?").prompt(ctx)
                 if role and res:
                     try:
                         await role.delete(reason="Deleted communal color role")
-                        finalmsg = "Deleted role and removed database entry"
+                        final_msg = "Deleted role and removed database entry"
                     except discord.Forbidden:
                         await ctx.send("Unable to delete role, check my permissions!")
                 else:
-                    finalmsg = "Deleted database entry and did not delete role"
+                    final_msg = "Deleted database entry and did not delete role"
                 await conn.execute(
                     "UPDATE colors SET communal_role_data = communal_role_data::jsonb - $1 WHERE guildid = $2", keyword,
                     ctx.guild.id)
-                await msg.edit(content=finalmsg)
+                await msg.edit(content=final_msg)
 
     @communalcolors.command()
     async def list(self, ctx):
         """Lists communal color roles"""
-        jsondata = await self.bot.db.fetchval("SELECT communal_role_data FROM colors WHERE guildid = $1", ctx.guild.id)
-        if not jsondata:
-            return await ctx.send("No communal color roles found, add some with `.communalcolors add`")
+        if await self.check_color_mode(ctx.guild, 'communal'):
+            return await ctx.send("Current color mode is not communal, thus you have no need for this!")
+
+        json_data = await self.bot.db.fetchval("SELECT communal_role_data FROM colors WHERE guildid = $1", ctx.guild.id)
+        if not json_data:
+            return await ctx.send("No communal color roles found, add some with `[p]communalcolors add`")
         embed = discord.Embed(title=f"Communal Color roles for {ctx.guild.name}", colour=ctx.author.color.value)
-        colorlist = []
-        deletedrole = False
-        delrolestr = ""  # just make sure we dont get unbound errors
-        for keyword, roledata in jsondata.items():
-            roledata = json.loads(roledata)
-            role = ctx.guild.get_role(roledata['roleid'])
+        color_list = []
+        deleted_role = False
+        del_role_str = ""  # just make sure we don't get unbound errors
+        for keyword, role_data in json_data.items():
+            role_data = json.loads(role_data)
+            role = ctx.guild.get_role(role_data['roleid'])
             if not role:
-                deletedrole = True
-                delrolestr = f"- :warning: `{keyword}` has been deleted!\n"
+                deleted_role = True
+                del_role_str = f"- :warning: `{keyword}` has been deleted!\n"
                 continue
 
-            colorlist.append(
-                f"- **__Color Hex:__** {roledata['colorhex']} **__Role Name:__** {role.name} **__Keyword:__** `{keyword}`\n")
+            color_list.append(
+                f"- **__Color Hex:__** {role_data['colorhex']} **__Role Name:__** {role.name} **__Keyword:__** `{keyword}`\n")
 
-        if deletedrole:
-            delrolestr += "\nPlease update these roles with `communalcolors add` or remove them with `communalcolors delete`"
-            if len(delrolestr) >= 1250:
+        if deleted_role:
+            del_role_str += "\nPlease update these roles with `communalcolors add` or remove them with `communalcolors delete`"
+            if len(del_role_str) >= 1250:
                 embed.add_field(name="**Deleted color roles!**",
                                 value="You have some deleted color roles, please see this file on which ones are deleted")
-                await ctx.send(file=discord.File(io.StringIO(delrolestr), filename="delete-colors.txt"))
+                await ctx.send(file=discord.File(io.StringIO(del_role_str), filename="delete-colors.txt"))
             else:
                 embed.add_field(name="**Deleted color roles!**",
-                                value=delrolestr)
-        pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(colorlist, per_page=6, embed=embed),
+                                value=del_role_str)
+        pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(color_list, per_page=6, embed=embed),
                                            clear_reactions_after=True, check_embeds=True)
         await pages.start(ctx)
 
@@ -162,12 +176,12 @@ class Colors(commands.Cog):
             "Really delete all personalized color roles from server and the database? This action is irreversible").prompt(
             ctx)
         if res:
-            jsondata = await self.bot.db.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1",
+            json_data = await self.bot.db.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1",
                                                   ctx.guild.id)
-            if jsondata is None:
+            if json_data is None:
                 return await msg.edit(content="No personal color roles saved")
-            for rolejson in jsondata.values():
-                role = ctx.guild.get_role((json.loads(rolejson))['roleid'])
+            for role_json in json_data.values():
+                role = ctx.guild.get_role((json.loads(role_json))['roleid'])
                 if role:
                     try:
                         await role.delete(reason=f"Clearing all personalized color roles, command ran by {ctx.author}")
@@ -180,9 +194,11 @@ class Colors(commands.Cog):
             await msg.edit(content="Cancelled")
             return
 
+    @checks.is_staff_or_perms('Mod', manage_roles=True)
     @personalcolor.command()
     async def delmember(self, ctx, member: discord.Member = None):
         """Manually deletes a color role for a user (Requires you to be able to manage roles or Mod to delete another's color role)"""
+
         if member is None or member == ctx.author:
             member = ctx.author
         else:
@@ -190,20 +206,18 @@ class Colors(commands.Cog):
                 return await ctx.send("You cannot delete other people's color roles if you are not a mod")
 
         async with self.bot.db.acquire() as conn:
-            dbentry = await conn.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
-                                          str(member.id),
-                                          ctx.guild.id)
-            if dbentry is None:
+            db_entry = await conn.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id), ctx.guild.id)
+            if db_entry is None:
                 return await ctx.send("This member does not have a color role!")
-            roleentry = json.loads(dbentry)
-            if roleentry is None:
+            role_entry = json.loads(db_entry)
+            if role_entry is None:
                 return await ctx.send("No entries found")
 
-            delquery = "UPDATE colors SET personal_role_data = personal_role_data::jsonb - $1 WHERE guildid = $2"
-            role = ctx.guild.get_role(roleentry['roleid'])
+            del_query = "UPDATE colors SET personal_role_data = personal_role_data::jsonb - $1 WHERE guildid = $2"
+            role = ctx.guild.get_role(role_entry['roleid'])
             if role is None:
                 await ctx.send("Role does not exist on server, deleting from database")
-                await conn.execute(delquery, str(member.id), ctx.guild.id)
+                await conn.execute(del_query, str(member.id), ctx.guild.id)
                 return
             else:
                 try:
@@ -213,49 +227,61 @@ class Colors(commands.Cog):
                     await ctx.send(
                         "Role could not be deleted, removing database entry, please manually remove this role and check my permissions")
 
-                await conn.execute(delquery, str(member.id), ctx.guild.id)
+                await conn.execute(del_query, str(member.id), ctx.guild.id)
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @personalcolor.command()
     async def manualadd(self, ctx, role: discord.Role, member: discord.Member):
         """Adds an already existing personal color to the database (Mod+ or manage_roles)"""
-        await ctx.send((await self.addpersonalcolorrole(ctx, role, member))[0])
+        if await self.check_color_mode(ctx.guild, 'personal'):
+            return await ctx.send("Current color mode is not personal, thus you have no need for this!")
+
+        await ctx.send((await self.add_personal_color_role(ctx, role, member))[0])
 
     @checks.is_staff_or_perms("Owner", administrator=True)
     @personalcolor.command()
     async def manualaddall(self, ctx):
         """Tries to add all existing personal color roles to the database, (Owners only or administrator perms)"""
-        successfuladds = []
+        if await self.check_color_mode(ctx.guild, 'personal'):
+            return await ctx.send("Current color mode is not personal, thus you have no need for this!")
+
+        successful_adds = []
         for member in ctx.guild.members:
             for role in member.roles:
-                if not member.bot and (role.color.value != 0 and role.name.lower() in member.name.lower()) or (role.name == member.id):
-                    if (await self.addpersonalcolorrole(ctx, role, member))[1] == 0:
-                        successfuladds.append(f"`{member.name}`")
+                if not member.bot and (role.color.value != 0 and role.name.lower() in member.name.lower()) or (
+                        role.name == member.id):
+                    if (await self.add_personal_color_role(ctx, role, member))[1] == 0:
+                        successful_adds.append(f"`{member.name}`")
 
         embed = discord.Embed(color=ctx.me.color.value)
-        embed.add_field(name="Users that had their color roles added:", value=",".join(successfuladds) if len(successfuladds) != 0 else "No users added!")
-        embed.set_footer(text=f"{len(successfuladds)} personal color roles added to the database" if len(successfuladds) != 1 else f"{len(successfuladds)} personal color role added to the database")
+        embed.add_field(name="Users that had their color roles added:",
+                        value=",".join(successful_adds) if len(successful_adds) != 0 else "No users added!")
+        embed.set_footer(text=f"{len(successful_adds)} personal color roles added to the database" if len(
+            successful_adds) != 1 else f"{len(successful_adds)} personal color role added to the database")
         await ctx.send(embed=embed)
 
     @personalcolor.command(aliases=['checkcolor', 'checkhex', 'getcolor', 'hex'])
     async def gethex(self, ctx, member: discord.Member = None):
         """Gets personal role color"""
+        if await self.check_color_mode(ctx.guild, 'personal'):
+            return await ctx.send("Current color mode is not personal, thus you have no need for this!")
+
         if member is None:
             member = ctx.author
-        jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
+        json_data = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
                                               str(member.id), ctx.guild.id)
-        if jsondata:
-            hexcolor = str(json.loads(jsondata)['colorhex']).zfill(6)
+        if json_data:
+            hex_color = str(json.loads(json_data)['colorhex']).zfill(6)
             embed = discord.Embed(title=f"Role color hex for {member}",
-                                  colour=discord.Color.from_rgb(*webcolors.hex_to_rgb(hexcolor)))
-            embed.description = hexcolor
+                                  colour=discord.Color.from_rgb(*webcolors.hex_to_rgb(hex_color)))
+            embed.description = hex_color
             return await ctx.send(embed=embed)
         else:
             return await ctx.send("Member does not have role color saved!")
 
     @commands.guild_only()
     @commands.command(aliases=['colorme', 'color', 'colour'])
-    async def switchrolecolor(self, ctx, newcolor):
+    async def switchrolecolor(self, ctx, new_color):
         """
         Changes your color. provide hex for personal color or keyword for communal color role
 
@@ -265,56 +291,55 @@ class Colors(commands.Cog):
 
         To find out which colormode the server is in. use [p]curcolormode
         """
-        curmode = await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", ctx.guild.id)
-        if curmode == "disabled":
+        cur_mode = await self.get_color_mode(ctx.guild)
+        if cur_mode == "disabled":
             return await ctx.send("Color roles are disabled on this server")
-        if curmode == 'personal':
+        elif cur_mode == 'personal':
             # sets hex up and stops invalid entries
 
-            if newcolor[0] != '#':
-                newcolor = '#' + newcolor
+            if new_color[0] != '#':
+                new_color = '#' + new_color
 
-            if len(newcolor) != 7:
+            if len(new_color) != 7:
                 return await ctx.send("Invalid color hex, please try again!")
 
             async with self.bot.db.acquire() as conn:
                 if await conn.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1",
                                        ctx.guild.id) is None:
-                    finalquery = "UPDATE colors SET personal_role_data = jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"
+                    final_query = "UPDATE colors SET personal_role_data = jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"
 
                 else:
 
-                    finalquery = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
+                    final_query = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
 
                 try:
-                    roleid = (json.loads(
+                    role_id = (json.loads(
                         await conn.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2",
                                             str(ctx.author.id), ctx.guild.id)))['roleid']
-                    role = ctx.guild.get_role(roleid)
+                    role = ctx.guild.get_role(role_id)
                 except TypeError:
                     role = None
 
                 # get highest color role
-                highestcolorrole = ctx.guild.default_role
-                moverole = False
-                uroles = ctx.author.roles.copy()
-                uroles.reverse()
-                jsondata = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(ctx.author.id), ctx.guild.id)
-                colorroleid = json.loads(jsondata)['roleid'] if jsondata is not None else None
-                for r in uroles:
+                highest_color_role = ctx.guild.default_role
+                move_role = False
+                user_roles = ctx.author.roles.copy()
+                user_roles.reverse()
+                json_data = await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(ctx.author.id), ctx.guild.id)
+                color_role_id = json.loads(json_data)['roleid'] if json_data is not None else None
+                for r in user_roles:
                     if r.color.value != 0:
-                        if r.id == colorroleid:
+                        if r.id == color_role_id:
                             break
-                        highestcolorrole = r
-                        moverole = True
+                        highest_color_role = r
+                        move_role = True
                         break
                 if role is None:
                     # create role with user's name
                     try:
-                        role = await ctx.guild.create_role(name=ctx.author.name, color=discord.Color.from_rgb(
-                            *webcolors.hex_to_rgb(newcolor)), reason=f"Color role for {ctx.author.name}")
-                        if moverole:
-                            await role.edit(position=highestcolorrole.position)
+                        role = await ctx.guild.create_role(name=ctx.author.name, color=discord.Color.from_rgb(*webcolors.hex_to_rgb(new_color)), reason=f"Color role for {ctx.author.name}")
+                        if move_role:
+                            await role.edit(position=highest_color_role.position)
                         await ctx.author.add_roles(role)
                         await ctx.send("Role created and added it to you!")
                     except discord.Forbidden:
@@ -323,14 +348,14 @@ class Colors(commands.Cog):
                     # update existing role, move if needed
                     try:
                         await role.edit(name=ctx.author.name,
-                                        color=discord.Color.from_rgb(*webcolors.hex_to_rgb(newcolor)),
+                                        color=discord.Color.from_rgb(*webcolors.hex_to_rgb(new_color)),
                                         reason=f"Color role for {ctx.author.name}")
                     except discord.Forbidden:
                         return await ctx.send("Unable to update role, check my permissions!")
 
-                    if moverole:
+                    if move_role:
                         try:
-                            await role.edit(position=highestcolorrole.position)
+                            await role.edit(position=highest_color_role.position)
                         except discord.HTTPException:
                             return await ctx.send(
                                 "Color updated, but I was unable to move your role to the highest color")
@@ -343,103 +368,110 @@ class Colors(commands.Cog):
                         except discord.Forbidden:
                             await ctx.send("Cannot add roles, please check my permissions!")
 
-                jsonobj = json.dumps({
-                    'colorhex': newcolor,
+                json_obj = json.dumps({
+                    'colorhex': new_color,
                     'roleid': role.id
                 })
-                await conn.execute(finalquery, ctx.author.id, jsonobj, ctx.guild.id)
+                await conn.execute(final_query, ctx.author.id, json_obj, ctx.guild.id)
 
         else:
             # handles communal mode
-            jsondata = await self.bot.db.fetchval("SELECT communal_role_data->>$1 FROM colors WHERE guildid = $2",
-                                                  newcolor, ctx.guild.id)
-            if not jsondata:
+            json_data = await self.bot.db.fetchval("SELECT communal_role_data->>$1 FROM colors WHERE guildid = $2", new_color, ctx.guild.id)
+            if not json_data:
                 return await ctx.send("Invalid communal color role option, to see options, run `communalcolors list`")
 
-            jsondata = json.loads(jsondata)
-            newcolorrole = ctx.guild.get_role(jsondata['roleid'])
-            if not newcolorrole:
+            json_data = json.loads(json_data)
+            new_color_role = ctx.guild.get_role(json_data['roleid'])
+            if not new_color_role:
                 return await ctx.send(
-                    f"Role does not exist, please re make it and add it to the bot, you can have the bot make it as well with `communalcolor add`. hexcolor for `{newcolor}` is `#{jsondata['colorhex']}")
+                    f"Role does not exist, please re make it and add it to the bot, you can have the bot make it as well with `communalcolor add`. hexcolor for `{new_color}` is `#{json_data['colorhex']}")
 
-            if newcolorrole in ctx.author.roles:
-                await ctx.author.remove_roles(newcolorrole)
-                return await ctx.send(f"Color {newcolor} removed!")
+            if new_color_role in ctx.author.roles:
+                await ctx.author.remove_roles(new_color_role)
+                return await ctx.send(f"Color {new_color} removed!")
             try:
-                await ctx.author.add_roles(newcolorrole)
-                await ctx.send(f"Switched to {newcolor} color")
+                await ctx.author.add_roles(new_color_role)
+                await ctx.send(f"Switched to {new_color} color")
             except discord.Forbidden:
                 return await ctx.send("Unable to switch your colored roles due to a lack of permissions")
 
-            communalcolors = await self.getcommunalroles(ctx.guild)
-            curcolor = set(communalcolors) & set(ctx.author.roles)
+            communal_colors = await self.get_communal_roles(ctx.guild)
+            cur_color = set(communal_colors) & set(ctx.author.roles)
             # just in case, *1 color at a time*
-            for rid in curcolor:
+            for rid in cur_color:
                 try:
                     role = ctx.guild.get_role(rid.id)
-                    if role != newcolorrole:
+                    if role != new_color_role:
                         await ctx.author.remove_roles(role)
                 except Exception:
                     pass
-    
+
     @commands.command(aliases=['curmode', 'curcolormode'])
     async def currentcolormode(self, ctx):
         """Shows current guild's color mode"""
-        curmode = await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", ctx.guild.id)
-        await ctx.send(f"{ctx.guild.name}'s current color role mode is {curmode.title()}")
+        cur_mode = await self.get_color_mode(ctx.guild)
+        await ctx.send(f"{ctx.guild.name}'s current color role mode is {cur_mode.title()}")
 
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.command()
     async def switchcolormode(self, ctx, mode):
+        """Switches the server's color mode (Owners or administrator permissions) valid modes are `communal`, `personal`, or `disabled`"""
         async with self.bot.db.acquire() as conn:
             modes = ('communal', 'personal', 'disabled')
-            curmode = await conn.fetchval("SELECT colormode FROM colors WHERE guildid = $1", ctx.guild.id)
-            updatequery = "UPDATE colors SET colormode = $1 WHERE guildid = $2"
+            cur_mode = await self.get_color_mode(ctx.guild)
+            update_query = "UPDATE colors SET colormode = $1 WHERE guildid = $2"
             if mode not in modes:
                 return await ctx.send("Invalid color mode, current modes are `communal`, `personal`, or `disabled`")
-            elif curmode not in modes:
+            elif cur_mode not in modes:
                 return await ctx.send("Invalid mode saved, please contact a bot owner")
 
-            elif mode == curmode:
-                return await ctx.send(f"The current color mode is already set to {curmode}")
+            elif mode == cur_mode:
+                return await ctx.send(f"The current color mode is already set to {cur_mode}")
 
             # switches mode to personal if server count is under 100 members
             if mode == modes[1]:
                 if ctx.guild.member_count > 100:
                     return await ctx.send("You cannot have personal color roles, your server is too big!")
                 else:
-                    await conn.execute(updatequery, modes[1], ctx.guild.id)
+                    await conn.execute(update_query, modes[1], ctx.guild.id)
                     return await ctx.send(f"Color mode switched to {modes[1]}")
 
             # switches color mode to communal
             else:
-                await conn.execute(updatequery, mode, ctx.guild.id)
+                await conn.execute(update_query, mode, ctx.guild.id)
                 return await ctx.send(f"Color mode switched to {mode}")
 
     # util functions
-    async def addpersonalcolorrole(self, ctx: commands.Context, role: discord.Role, member: discord.Member):
+
+    async def check_color_mode(self, guild: discord.Guild, required_mode):
+        """check the color mode and makes sure the command is needed for certain commands"""
+        cur_color_mode = await self.get_color_mode(guild)
+        return cur_color_mode.lower() != required_mode.lower()
+
+    async def get_color_mode(self, guild: discord.Guild) -> str:
+        """Returns a guild's color mode"""
+        return await self.bot.db.fetchval("SELECT colormode FROM colors WHERE guildid = $1", guild.id)
+
+    async def add_personal_color_role(self, ctx: commands.Context, role: discord.Role, member: discord.Member):
         if await self.bot.db.fetchval("SELECT personal_role_data->>$1 FROM colors WHERE guildid = $2", str(member.id),
                                       ctx.guild.id):
             return "You already have a color role saved! use `color` to update it!", 1
 
-        colorhex = (str(hex(role.color.value)))[2:].zfill(6)
-        if colorhex[0] != '#':
-            colorhex = '#' + colorhex
+        color_hex = (str(hex(role.color.value)))[2:].zfill(6)
+        if color_hex[0] != '#':
+            color_hex = '#' + color_hex
 
-        roledata = json.dumps({
-            'colorhex': colorhex,
+        role_data = json.dumps({
+            'colorhex': color_hex,
             'roleid': role.id
         })
         async with self.bot.db.acquire() as conn:
-            if await conn.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1",
-                                   ctx.guild.id) is None:
-                finalquery = "UPDATE colors SET personal_role_data = jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"
-
+            if await conn.fetchval("SELECT personal_role_data FROM colors WHERE guildid = $1", ctx.guild.id) is None:
+                final_query = "UPDATE colors SET personal_role_data = jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"
             else:
+                final_query = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
 
-                finalquery = "UPDATE colors SET personal_role_data = personal_role_data::jsonb || jsonb_build_object($1::BIGINT, $2::jsonb) WHERE guildid = $3"""
-
-            await conn.execute(finalquery, member.id, roledata, ctx.guild.id)
+            await conn.execute(final_query, member.id, role_data, ctx.guild.id)
         if role not in member.roles:
             try:
                 await member.add_roles(role)
@@ -448,22 +480,21 @@ class Colors(commands.Cog):
 
         return "Color role manually added, update it with `color`. Run `color` if you need to move it to your highest colored role.", 0
 
-    async def setupdbguild(self, guildid):
+    async def setup_db_guild(self, guild_id):
         """Adds a json config for a guild to store toggleable roles in"""
         async with self.bot.db.acquire() as conn:
-            if await conn.fetchval("SELECT guildid FROM colors WHERE guildid = $1", guildid) is None:
-                await conn.execute("INSERT INTO colors (guildid) VALUES ($1)", guildid)
+            if await conn.fetchval("SELECT guildid FROM colors WHERE guildid = $1", guild_id) is None:
+                await conn.execute("INSERT INTO colors (guildid) VALUES ($1)", guild_id)
 
-    async def getcommunalroles(self, guild: discord.Guild) -> list:
+    async def get_communal_roles(self, guild: discord.Guild) -> list:
         """Returns of list of a guild's communal color roles"""
-        jsondata = await self.bot.db.fetchval("SELECT communal_role_data FROM colors WHERE guildid = $1", guild.id)
+        json_data = await self.bot.db.fetchval("SELECT communal_role_data FROM colors WHERE guildid = $1", guild.id)
         roles = []
-        for i in jsondata.values():
-            roleid = json.loads(i)['roleid']
-            role = guild.get_role(roleid)
+        for i in json_data.values():
+            role_id = json.loads(i)['roleid']
+            role = guild.get_role(role_id)
             if role:
                 roles.append(role)
-
         return roles
 
 

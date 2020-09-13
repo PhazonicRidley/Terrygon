@@ -30,21 +30,21 @@ def parse_time(time_string) -> int:
     return seconds
 
 
-async def getStaffRoles(ctx) -> list:
+async def get_staff_roles(ctx) -> list:
     """Get's a guild's staff roles"""
     async with ctx.bot.db.acquire() as conn:
         ids = await conn.fetchrow("SELECT modrole, adminrole, ownerrole FROM roles WHERE guildid = $1",
                                   ctx.guild.id)
-        staffroles = []
+        staff_roles = []
         for id in ids:
-            staffroles.append(ctx.guild.get_role(id))
-        while None in staffroles:
-            staffroles.remove(None)
+            staff_roles.append(ctx.guild.get_role(id))
+        while None in staff_roles:
+            staff_roles.remove(None)
 
-    return staffroles
+    return staff_roles
 
 
-async def checkIfPrivateChannel(ctx, channel: discord.TextChannel):
+async def check_private_channel(ctx, channel: discord.TextChannel):
     """Checks if a channel is private"""
     roles = []
     if await ctx.bot.db.fetchval("SELECT approvalSystem FROM guild_settings WHERE guildid = $1", ctx.guild.id):

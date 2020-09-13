@@ -15,32 +15,32 @@ class Trusted(commands.Cog):
         return await self.bot.db.fetchval("SELECT trusteduid FROM trustedusers WHERE guildid = $1", guildid)
 
     @commands.guild_only()
-    @commands.command(aliases=['trustlist'])
+    @commands.command(aliases=['trustlist', 'trustedusers'])
     async def listtrusted(self, ctx):
         """Lists a guild's trusted users"""
 
-        trustedids = await self.getTrustedList(ctx.guild.id)
+        trusted_ids = await self.getTrustedList(ctx.guild.id)
         embed = discord.Embed(title=f"Trusted users for {ctx.guild.name}", colour=common.gen_color(ctx.guild.id))
 
-        if not trustedids:
+        if not trusted_ids:
             embed.description = "No trusted users!"
             return await ctx.send(embed=embed)
 
-        deletedusers = False
-        deletedusers = ""
-        trusteduserstr = ""
-        for uid in trustedids:
+        deleted_users = False
+        deleted_users = ""
+        trusted_user_str = ""
+        for uid in trusted_ids:
             user = self.bot.get_user(uid) if self.bot.get_user(uid) else await self.bot.fetch_user(uid)
             if user is None:
-                deletedusers = True
-                deletedusers += f"- \U000026a0 {uid}\n"
+                deleted_users = True
+                deleted_users += f"- \U000026a0 {uid}\n"
             else:
-                trusteduserstr += f"- {user}\n"
+                trusted_user_str += f"- {user}\n"
 
-        embed.description = trusteduserstr
-        if deletedusers:
+        embed.description = trusted_user_str
+        if deleted_users:
             embed.add_field(name="**Deleted user IDs!**",
-                            value=deletedusers + "\nPlease delete these users from the database!")
+                            value=deleted_users + "\nPlease delete these users from the database!")
         await ctx.send(embed=embed)
 
     @commands.guild_only()
@@ -48,8 +48,8 @@ class Trusted(commands.Cog):
     @commands.command()
     async def trust(self, ctx, member: discord.Member):
         """Adds a member to the guild's trusted list (Admin+ or manage server)"""
-        trustedlist = await self.getTrustedList(ctx.guild.id)
-        if trustedlist is None or member.id not in trustedlist:
+        trusted_list = await self.getTrustedList(ctx.guild.id)
+        if trusted_list is None or member.id not in trusted_list:
             await self.bot.db.execute(
                 "UPDATE trustedusers SET trusteduid = array_append(trusteduid, $1) WHERE guildid = $2", member.id,
                 ctx.guild.id)
@@ -62,14 +62,14 @@ class Trusted(commands.Cog):
     @commands.command()
     async def untrust(self, ctx, member: typing.Union[discord.Member, int]):
         """Removes a member to the guild's trusted list (Admin+ or manage server)"""
-        trustedlist = await self.getTrustedList(ctx.guild.id)
+        trusted_list = await self.getTrustedList(ctx.guild.id)
         if isinstance(member, discord.Member):
             member = member.id
 
-        if trustedlist is None or len(trustedlist) == 0:
+        if trusted_list is None or len(trusted_list) == 0:
             return await ctx.send("No trusted users saved")
 
-        elif member in trustedlist:
+        elif member in trusted_list:
             await self.bot.db.execute(
                 "UPDATE trustedusers SET trusteduid = array_remove(trusteduid, $1) WHERE guildid = $2", member.id,
                 ctx.guild.id)
@@ -95,7 +95,7 @@ class Trusted(commands.Cog):
         except discord.HTTPException:
             return await ctx.send("This channel has 50 pinned messages, please remove one before adding more")
 
-        await self.bot.discordLogger.messagepinned('pin', ctx.author, message)
+        await self.bot.discord_logger.message_pinned('pin', ctx.author, message)
 
     @checks.is_trusted_or_perms(manage_messages=True)
     @commands.command()
@@ -113,7 +113,7 @@ class Trusted(commands.Cog):
             return await ctx.send("I do not have permission to unpin messages")
 
         await ctx.send("Message unpinned")
-        await self.bot.discordLogger.messagepinned('unpin', ctx.author, message)
+        await self.bot.discord_logger.message_pinned('unpin', ctx.author, message)
 
 
 def setup(bot):

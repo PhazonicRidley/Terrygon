@@ -1,6 +1,7 @@
 import discord
 from discord.ext import menus
 
+
 class YesNoMenu(menus.Menu):
 
     def __init__(self, initMsg):
@@ -33,7 +34,7 @@ class YesNoMenu(menus.Menu):
 class BasicEmbedMenu(menus.ListPageSource):
     def __init__(self, data, *, per_page, embed=None):
         self.embed = embed
-       # self.embedoptions = embedoptions
+        # self.embedoptions = embedoptions
         super().__init__(data, per_page=per_page)
 
     async def format_page(self, menu, entries):
@@ -42,7 +43,7 @@ class BasicEmbedMenu(menus.ListPageSource):
         else:
             embed = discord.Embed(color=discord.Color.greyple())
         embed.description = "\n".join(entries)
-        #embed.add_field(name="I wont change", value="UNTIL ITS OVERRRR!!!")
+        # embed.add_field(name="I wont change", value="UNTIL ITS OVERRRR!!!")
         embed.set_footer(text=f"Page {menu.current_page + 1} of {self.get_max_pages()}")
         return embed
 
