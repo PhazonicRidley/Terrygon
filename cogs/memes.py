@@ -72,8 +72,9 @@ class Memes(commands.Cog):
             guild_memes_list.append("**No guild memes saved**")
         guild_memes_list.sort()
         if global_memes:
-            global_memes.sort()
-            for meme in global_memes.keys():
+            global_meme_list = list(global_memes.keys())
+            global_meme_list.sort()
+            for meme in global_meme_list:
                 global_meme_string += f"{meme}\n"
         else:
             global_meme_string = "No global memes found!"
