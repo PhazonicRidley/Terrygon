@@ -231,7 +231,7 @@ class Warn(commands.Cog):
                 await ctx.send("No warns found")
 
             else:
-                await self.bot.discord_logger.warn_clear(ctx, 'clear', member, ctx.author)
+                await self.bot.discord_logger.warn_clear('clear', member, ctx.author)
                 await conn.execute("DELETE FROM warns WHERE userID = $1 AND guildid = $2", member.id, ctx.guild.id)
                 await ctx.send(f"{warn_nums} warns cleared from {member.name}")
 
