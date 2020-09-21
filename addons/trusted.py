@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, flags
 from utils import checks, common
 import webcolors
 import typing
@@ -15,8 +15,9 @@ class Trusted(commands.Cog):
         return await self.bot.db.fetchval("SELECT trusteduid FROM trustedusers WHERE guildid = $1", guildid)
 
     @commands.guild_only()
-    @commands.command(aliases=['trustlist', 'trustedusers'])
-    async def listtrusted(self, ctx):
+    @flags.add_flag('--id', '-i', action="store_true", default=False)
+    @flags.command(aliases=['trustlist', 'trustedusers'])
+    async def listtrusted(self, ctx, **flag_arg):
         """Lists a guild's trusted users"""
 
         trusted_ids = await self.getTrustedList(ctx.guild.id)
@@ -26,7 +27,6 @@ class Trusted(commands.Cog):
             embed.description = "No trusted users!"
             return await ctx.send(embed=embed)
 
-        deleted_users = False
         deleted_users = ""
         trusted_user_str = ""
         for uid in trusted_ids:
@@ -35,7 +35,10 @@ class Trusted(commands.Cog):
                 deleted_users = True
                 deleted_users += f"- \U000026a0 {uid}\n"
             else:
-                trusted_user_str += f"- {user}\n"
+                trusted_user_str += f"- {user}"
+                if flag_arg['id']:
+                    trusted_user_str += f" ({uid})"
+                trusted_user_str += "\n"
 
         embed.description = trusted_user_str
         if deleted_users:
@@ -71,9 +74,9 @@ class Trusted(commands.Cog):
 
         elif member in trusted_list:
             await self.bot.db.execute(
-                "UPDATE trustedusers SET trusteduid = array_remove(trusteduid, $1) WHERE guildid = $2", member.id,
+                "UPDATE trustedusers SET trusteduid = array_remove(trusteduid, $1) WHERE guildid = $2", member,
                 ctx.guild.id)
-            await ctx.send(f"{member} removed from trusted list!")
+            await ctx.send(f"{ctx.guild.get_member(member) if ctx.guild.get_member(member) is not None else 'User'} has been removed from trusted list!")
         else:
             await ctx.send("This user is not trusted")
 
