@@ -40,7 +40,7 @@ Also, its 2 am while I write this so probably best to just ignore everything in 
 5. Edit the `config.yml` fields with your information. Each field is labled on what it does, if you need help making a bot token, you can check [here](https://tinyurl.com/yad4qmz3) for instructions on making it and adding it to your server.
 6. Change the paths in `terrygon.service` for where your bot files will be.
 7. Copy `terrygon.service` to `~/.config/systemd/user`.
-8. Run commands `systemd --user daemon-reload` and then finally `systemd --user start terrygon.service`. You may also choose to enable this at start up.
+8. Run commands `systemctl --user daemon-reload` and then finally `systemctl --user start terrygon.service`. You may also choose to enable this at start up.
 
 ### Docker:
 Currently not finished and will be added later
