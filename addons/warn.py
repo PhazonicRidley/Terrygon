@@ -166,7 +166,7 @@ class Warn(commands.Cog):
                 await ctx.send("This user has no warns on this server!")
 
             await ctx.send(f"Warn {warn_num} removed!")
-            await self.bot.discord_logger.warn_clear(ctx, 'clear', member, ctx.author, deleted_warn)
+            await self.bot.discord_logger.warn_clear('clear', member, ctx.author, deleted_warn)
 
     @commands.guild_only()
     @commands.command()

@@ -99,7 +99,10 @@ class Approval(commands.Cog):
             return await ctx.send("Unable to manage roles and channels!")
 
         await ctx.send("All permissions have been configured")
-        await self.bot.discord_logger.approval_config(ctx.author, approval_channel, approval_role)
+        try:
+            await self.bot.discord_logger.approval_config(ctx.author, approval_channel, approval_role)
+        except errors.loggingError:
+            pass
 
     @checks.is_staff_or_perms('Owner', administrator=True)
     @commands.guild_only()

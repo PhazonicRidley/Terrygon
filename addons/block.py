@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, flags
 import typing
 import re
-from utils import checks, common
+from utils import checks, common, errors
 
 
 async def apply_blocks(member: discord.Member, channel: typing.Union[
@@ -194,7 +194,10 @@ class Block(commands.Cog):
 
         if len(block_list) > 0:
             await self.dbblocklist(member, channel, block_list, "block", reason)
-            await self.bot.discord_logger.channel_block("block", member, ctx.author, channel, block_list, reason)
+            try:
+                await self.bot.discord_logger.channel_block("block", member, ctx.author, channel, block_list, reason)
+            except errors.loggingError:
+                pass
             await ctx.send(
                 f"{member} can no longer `{'`, `'.join(block_list)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}.")
 
@@ -277,7 +280,11 @@ class Block(commands.Cog):
 
         if len(unblock_list) > 0:
             await self.dbblocklist(member, channel, unblock_list, "unblock")
-            await self.bot.discord_logger.channel_block("unblock", member, ctx.author, channel, unblock_list)
+            try:
+                await self.bot.discord_logger.channel_block("unblock", member, ctx.author, channel, unblock_list)
+            except errors.loggingError:
+                pass
+
             await ctx.send(
                 f"{member} can `{'`, `'.join(unblock_list)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name} again.")
 
