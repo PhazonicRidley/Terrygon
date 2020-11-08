@@ -1,7 +1,5 @@
 -- work in progress, for postgres 12
 
-CREATE SCHEMA IF NOT EXISTS terrygon AUTHORIZATION terrygon; -- Change this line's "bot"s if your bot postgres username is not bot!
-
     -- for warn addon
     CREATE TABLE IF NOT EXISTS warns
     (
