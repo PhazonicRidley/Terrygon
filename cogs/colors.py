@@ -280,8 +280,8 @@ class Colors(commands.Cog):
             return await ctx.send("Member does not have role color saved!")
 
     @commands.guild_only()
-    @commands.command(aliases=['colorme', 'color', 'colour'])
-    async def switchrolecolor(self, ctx, new_color):
+    @commands.command(aliases=['colorme', 'color', 'colour'], name="switchrolecolor")
+    async def switch_role_color(self, ctx, new_color):
         """
         Changes your color. provide hex for personal color or keyword for communal color role
 

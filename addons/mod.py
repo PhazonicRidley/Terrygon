@@ -29,7 +29,7 @@ class Mod(commands.Cog):
                 if not cog:
                     return await ctx.send(
                         "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
-                await cog.mutedrolesetup(ctx)
+                await cog.muted_role_setup(ctx)
 
             muted_role_id = await conn.fetchval("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id)
             if muted_role_id is None:
@@ -41,7 +41,7 @@ class Mod(commands.Cog):
                 if not cog:
                     return await ctx.send(
                         "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
-                await cog.mutedrolesetup(ctx)
+                await cog.muted_role_setup(ctx)
 
             try:
                 if muted_role in member.roles or await conn.fetchval(
@@ -88,7 +88,7 @@ class Mod(commands.Cog):
                 if not cog:
                     return await ctx.send(
                         "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
-                await cog.mutedrolesetup(ctx)
+                await cog.muted_role_setup(ctx)
 
             muted_role = ctx.guild.get_role(muted_role_id)
             if muted_role is None:
@@ -96,7 +96,7 @@ class Mod(commands.Cog):
                 if not cog:
                     return await ctx.send(
                         "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
-                await cog.mutedrolesetup(ctx)
+                await cog.muted_role_setup(ctx)
 
             try:
                 if not muted_role in member.roles or not await conn.fetchval(

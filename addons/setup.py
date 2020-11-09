@@ -186,8 +186,8 @@ class Setup(commands.Cog):
     # roles
 
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @commands.group(invoke_without_command=True, aliases=['serverrole', 'dbrole'])
-    async def staffrole(self, ctx):
+    @commands.group(invoke_without_command=True, aliases=['serverrole', 'dbrole'], name="staffrole")
+    async def staff_role(self, ctx):
         """Command for setting and unsetting staff roles (Owner or administrator)"""
         await ctx.send_help(ctx.command)
 
@@ -195,8 +195,8 @@ class Setup(commands.Cog):
     @flags.add_flag("--adminrole", type=discord.Role)
     @flags.add_flag("--modrole", type=discord.Role)
     @flags.add_flag("--ownerrole", type=discord.Role)
-    @staffrole.command(cls=flags.FlagCommand, aliases=['set'])
-    async def roleset(self, ctx, **role_flags):
+    @staff_role.command(cls=flags.FlagCommand, name="set")
+    async def staff_role_set(self, ctx, **role_flags):
         """Sets a staff role to be used in the database (Owner or administrator)
 
         **Flags:**
@@ -225,8 +225,8 @@ class Setup(commands.Cog):
     @flags.add_flag("--adminrole", default=None, action="store_true")
     @flags.add_flag("--modrole", default=None, action="store_true")
     @flags.add_flag("--ownerrole", default=None, action="store_true")
-    @staffrole.command(cls=flags.FlagCommand, aliases=['unset'])
-    async def roleunset(self, ctx, **role_flags):
+    @staff_role.command(cls=flags.FlagCommand, name="unset")
+    async def role_unset(self, ctx, **role_flags):
         """Unsets a staff role (Owner or administrator)
 
         **Flags:**
@@ -299,37 +299,38 @@ class Setup(commands.Cog):
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Owner', administrator=True)
-    @logs.command()
-    async def joinleave(self, ctx):
+    @logs.command(name='joinleave')
+    async def join_leave(self, ctx):
         """Enables or disables joining and leaving logs"""
         await self.toggle_join_logs(ctx)
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Owner', administrator=True)
-    @logs.command()
-    async def editsdeletes(self, ctx):
+    @logs.command(name="editsdeletes", aliases=['coremessagelogs'])
+    async def edits_and_deletes(self, ctx):
         """Enables or disables message edits or deletions"""
         await self.toggle_core_message_logs(ctx)
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Mod', manage_roles=True)
-    @commands.group(invoke_without_command=True)
-    async def mutedrole(self, ctx):
+    @commands.group(invoke_without_command=True, name="mutedrole")
+    async def muted_role(self, ctx):
         """Manage muted role"""
         await ctx.send_help(ctx.command)
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Mod', manage_roles=True)
-    @mutedrole.command(aliases=['set'])
-    async def mutedroleset(self, ctx, role: discord.Role = None):
-        out = await self.mutedrolesetup(ctx, role)
+    @muted_role.command(name="set")
+    async def muted_role_set(self, ctx, role: discord.Role = None):
+        """Sets and configures a server's muted role"""
+        out = await self.muted_role_setup(ctx, role)
         if out:
             await ctx.send(out)
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Admin', manage_guild=True)
-    @mutedrole.command(aliases=['unset'])
-    async def mutedroleunset(self, ctx):
+    @muted_role.command(name="unset")
+    async def muted_role_unset(self, ctx):
         """Unsets the muted role (Admin+, manage server)"""
         muted_role_id = await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id)
         if not muted_role_id:
@@ -345,7 +346,7 @@ class Setup(commands.Cog):
         else:
             await msg.edit(content="Role not deleted.")
 
-    async def mutedrolesetup(self, ctx, role: discord.Role = None):
+    async def muted_role_setup(self, ctx, role: discord.Role = None):
         """Sets the muted role and configures the server to use the muted role."""
         if role is None:
             res, msg = await paginator.YesNoMenu("No muted role detected, would you like to create one?").prompt(ctx)

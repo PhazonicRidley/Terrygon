@@ -1,3 +1,4 @@
+import asyncpg
 import discord
 from discord.errors import Forbidden
 from discord.ext import commands, flags
@@ -11,13 +12,22 @@ class Approval(commands.Cog):
 
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
-    @commands.command()
-    async def toggleapproval(self, ctx):
-        """Enables or disables a server's approval system (Owners only)"""
+    @commands.group(name="approvalsystem", invoke_without_command=True)
+    async def approval_system_manager(self, ctx):
+        """Manages a server's approval system."""
+        await ctx.send_help(ctx.command)
 
+    @checks.is_staff_or_perms("Owner", administrator=True)
+    @commands.guild_only()
+    @approval_system_manager.command(name="toggle")
+    async def toggle(self, ctx):
+        """Enables or disables a server's approval system"""
         async with self.bot.db.acquire() as conn:
-            if await conn.fetchval("SELECT approvedRole FROM roles WHERE guildID = $1", ctx.guild.id) is None or await conn.fetchval("SELECT approvalchannel FROM guild_settings WHERE guildid = $1", ctx.guild.id):
-                await ctx.send("Missing registered approval role or approval gateway channel. To configure these, please use `configureapprovalsystem`. This command is for enabling or disabling an existing approval system!")
+            if await conn.fetchval("SELECT approvedRole FROM roles WHERE guildID = $1",
+                                   ctx.guild.id) is None or await conn.fetchval(
+                    "SELECT approvalchannel FROM guild_settings WHERE guildid = $1", ctx.guild.id):
+                await ctx.send(
+                    "Missing registered approval role or approval gateway channel. To configure these, please use `approvalsystem configure`. This command is for enabling or disabling an existing approval system!")
                 return
 
             status = await conn.fetchval("SELECT approvalSystem FROM guild_settings WHERE guildID = $1", ctx.guild.id)
@@ -37,11 +47,12 @@ class Approval(commands.Cog):
                     pass
                 await ctx.send("Approval system enabled! use approve to let new members in")
 
-    @checks.is_staff_or_perms('Owner', administrator=True)
+    @checks.is_staff_or_perms("Owner", administrator=True)
+    @commands.guild_only()
     @flags.add_flag('--channel', '-c', type=discord.TextChannel, default=None)
     @flags.add_flag('--role', '-r', type=discord.Role, default=None)
-    @flags.command()
-    async def configureapprovalsystem(self, ctx, **flag_options):
+    @approval_system_manager.command(cls=flags.FlagCommand)
+    async def configure(self, ctx, **flag_options):
         """Configure a server to use an approval system"""
         approval_role: discord.Role = None
         approval_channel: discord.TextChannel = None
@@ -50,7 +61,8 @@ class Approval(commands.Cog):
                 "No approval gateway channel specified, would you like me to make a new channel for this?").prompt(ctx)
             if res:
                 try:
-                    approval_channel = await ctx.guild.create_text_channel('approval', reason="Approval gateway channel")
+                    approval_channel = await ctx.guild.create_text_channel('approval',
+                                                                           reason="Approval gateway channel")
                     await approval_channel.edit(position=1)
                 except discord.Forbidden:
                     await msg.edit(content="Unable to manage channels!")
@@ -73,7 +85,8 @@ class Approval(commands.Cog):
                     return
                 await msg.edit(content="Approval role created!")
             else:
-                await msg.edit(content="You need an approval role for the approval system to work properly, if you have an existing one specify one with `-r <channel>`")
+                await msg.edit(
+                    content="You need an approval role for the approval system to work properly, if you have an existing one specify one with `-r <channel>`")
 
         else:
             approval_role = flag_options['role']
@@ -83,7 +96,9 @@ class Approval(commands.Cog):
             return await ctx.send("Invalid data given, please run this command again")
 
         async with self.bot.db.acquire() as conn:
-            await conn.execute("UPDATE guild_settings SET approvalSystem = TRUE, approvalchannel = $1 WHERE guildID = $2", approval_channel.id, ctx.guild.id)
+            await conn.execute(
+                "UPDATE guild_settings SET approvalSystem = TRUE, approvalchannel = $1 WHERE guildID = $2",
+                approval_channel.id, ctx.guild.id)
             await conn.execute("UPDATE roles SET approvedRole = $1 WHERE guildid =$2", approval_role.id, ctx.guild.id)
 
         # now to set the permissions up
@@ -95,6 +110,9 @@ class Approval(commands.Cog):
                     await channel.set_permissions(approval_role, read_messages=True)
                     await channel.set_permissions(ctx.guild.default_role, read_messages=False)
 
+                if channel.overwrites_for(ctx.guild.default_role).send_messages is False:
+                    await channel.set_permissions(approval_role, send_messages=False)
+
         except discord.Forbidden:
             return await ctx.send("Unable to manage roles and channels!")
 
@@ -104,17 +122,19 @@ class Approval(commands.Cog):
         except errors.loggingError:
             pass
 
-    @checks.is_staff_or_perms('Owner', administrator=True)
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
-    @commands.command()
-    async def removeapprovalsystem(self, ctx):
+    @approval_system_manager.command()
+    async def remove(self, ctx):
         """Disables and removes an approval system fully from a server"""
         async with self.bot.db.acquire() as conn:
             if not await conn.fetchval("SELECT approvalSystem FROM guild_settings WHERE guildid = $1", ctx.guild.id):
                 return await ctx.send("You do not have an approval system enabled, and thus do not need this!")
 
-            approval_role = ctx.guild.get_role(await conn.fetchval("SELECT approvedRole FROM roles WHERE guildid = $1", ctx.guild.id))
-            approval_channel = ctx.guild.get_channel(await conn.fetchval("SELECT approvalchannel FROM guild_settings WHERE guildid = $1", ctx.guild.id))
+            approval_role = ctx.guild.get_role(
+                await conn.fetchval("SELECT approvedRole FROM roles WHERE guildid = $1", ctx.guild.id))
+            approval_channel = ctx.guild.get_channel(
+                await conn.fetchval("SELECT approvalchannel FROM guild_settings WHERE guildid = $1", ctx.guild.id))
 
         # remove all permissions that the approval system needed
         if approval_role:
@@ -146,12 +166,19 @@ class Approval(commands.Cog):
             else:
                 await msg.edit(content="Channel not deleted")
         else:
-            await self.bot.db.execute("UPDATE guild_settings SET approvedchannel = NULL WHERE guildid = $1", ctx.guild.id)
+            try:
+                await self.bot.db.execute("UPDATE guild_settings SET approvedchannel = NULL WHERE guildid = $1",
+                                      ctx.guild.id)
+            except asyncpg.UndefinedColumnError:
+                pass
             await ctx.send("Approval channel has already been delete, removing from database.")
 
         await self.bot.db.execute("UPDATE guild_settings SET approvalSystem = NULL WHERE guildid = $1", ctx.guild.id)
         await self.bot.db.execute("DELETE FROM approvedMembers WHERE guildid = $1", ctx.guild.id)
-        await self.bot.discord_logger.approval_deletion(ctx.author, approval_channel, approval_role)
+        try:
+            await self.bot.discord_logger.approval_deletion(ctx.author, approval_channel, approval_role)
+        except errors.loggingError:
+            pass
 
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.guild_only()
@@ -212,7 +239,8 @@ class Approval(commands.Cog):
                 await ctx.send("Unable to remove roles, please check my permissions")
                 return
 
-            await conn.execute("DELETE FROM approvedMembers WHERE userID = $1 AND guildID = $2", member.id, ctx.guild.id)
+            await conn.execute("DELETE FROM approvedMembers WHERE userID = $1 AND guildID = $2", member.id,
+                               ctx.guild.id)
 
 
 def setup(bot):

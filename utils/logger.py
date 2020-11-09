@@ -327,3 +327,13 @@ class Logger:
             await self.dispatch('modlogs', ctx.guild, 'unban', logging_msg)
         except errors.loggingError:
             await ctx.send("Please configure logging for modlogs using `[p]logchannel set modlogs #<yourchannel>`")
+
+
+
+    async def auto_mod_setup(self, author: discord.Member, action: str, **kwargs):
+        """Sets up auto-mod logging"""
+        logging_msg = f"{self.emotes[action]} **__Auto-mod configured: {action.title()}__** {author.mention} has added an auto logging system for "
+        if "warn_num" in kwargs.keys():
+            logging_msg += f"when a user gets {kwargs['warn_num']} warn(s)."
+
+        await self.dispatch('modlogs', author.guild, action, logging_msg)
