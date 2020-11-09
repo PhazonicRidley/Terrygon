@@ -98,7 +98,7 @@ class Warn(commands.Cog):
         async with self.bot.db.acquire() as conn:
             if await conn.fetchval("SELECT warn_punishments FROM guild_settings WHERE guildid = $1",
                                    ctx.guild.id) is None:
-                await conn.execute("UPDATE guild_settings SET warn_punishments = json_build_object()")
+                await conn.execute("UPDATE guild_settings SET warn_punishments = json_build_object() WHERE guildid = $1", ctx.guild.id)
 
             await conn.execute(
                 "UPDATE guild_settings SET warn_punishments = warn_punishments::jsonb || jsonb_build_object($1::INT, $2::TEXT) WHERE guildid = $3",
