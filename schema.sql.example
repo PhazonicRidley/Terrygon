@@ -28,6 +28,7 @@
     -- for mute addon
     CREATE TABLE IF NOT EXISTS mutes
     (
+        id SERIAL PRIMARY KEY,
         userID BIGINT,
         authorID BIGINT,
         guildID BIGINT,
@@ -73,10 +74,9 @@
     CREATE INDEX IF NOT EXISTS approved_idx ON approvedMembers (userID);
 
 
-    -- might add timed bans here in the future
-    -- for softbans only at the moment
     CREATE TABLE IF NOT EXISTS bans
     (
+        id SERIAL PRIMARY KEY,
         userID BIGINT,
         authorID BIGINT,
         guildID BIGINT,
