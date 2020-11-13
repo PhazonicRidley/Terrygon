@@ -80,6 +80,7 @@ class Trusted(commands.Cog):
         else:
             await ctx.send("This user is not trusted")
 
+    @commands.guild_only()
     @checks.is_trusted_or_perms(manage_messages=True)
     @commands.command()
     async def pin(self, ctx, message: discord.Message):
@@ -100,6 +101,7 @@ class Trusted(commands.Cog):
 
         await self.bot.discord_logger.message_pinned('pin', ctx.author, message)
 
+    @commands.guild_only()
     @checks.is_trusted_or_perms(manage_messages=True)
     @commands.command()
     async def unpin(self, ctx, message: discord.Message):

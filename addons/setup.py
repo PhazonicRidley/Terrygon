@@ -113,13 +113,14 @@ class Setup(commands.Cog):
                 raise commands.BadArgument("Unknown mode, valid modes are set and unset!")
 
     # channels
-
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.group(invoke_without_command=True)
     async def logchannel(self, ctx):
         """Command for setting and unsetting log channels (Owner or administrator)"""
         await ctx.send_help(ctx.command)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @flags.add_flag("--modlogs", type=discord.TextChannel)
     @flags.add_flag("--memberlogs", type=discord.TextChannel)
@@ -152,6 +153,7 @@ class Setup(commands.Cog):
                 # should never appear
                 await ctx.send("Unable to set any channels to the database!")
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @flags.add_flag("--modlogs", default=None, action="store_true")
     @flags.add_flag("--memberlogs", default=None, action="store_true")
@@ -184,7 +186,7 @@ class Setup(commands.Cog):
                 await ctx.send("Unable to unset any channels to the database!")
 
     # roles
-
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.group(invoke_without_command=True, aliases=['serverrole', 'dbrole'], name="staffrole")
     async def staff_role(self, ctx):
@@ -221,6 +223,7 @@ class Setup(commands.Cog):
             else:
                 await ctx.send("Unable to set any roles to the database!")
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @flags.add_flag("--adminrole", default=None, action="store_true")
     @flags.add_flag("--modrole", default=None, action="store_true")
@@ -389,6 +392,7 @@ class Setup(commands.Cog):
         """Manage and list the guild's custom prefixes, by default the only avalable prefixes will be mentioning the bot or the global default prefix"""
         await ctx.send_help(ctx.command)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Admin", manage_guild=True)
     @prefix.command()
     async def add(self, ctx, new_prefix):
@@ -409,6 +413,7 @@ class Setup(commands.Cog):
                 else:
                     return await ctx.send("This prefix is already in the guild!")
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Admin", manage_guild=True)
     @prefix.command(aliases=['del', 'delete'])
     async def remove(self, ctx, prefix):
@@ -423,6 +428,7 @@ class Setup(commands.Cog):
                 await conn.execute("UPDATE guild_settings SET prefixes = array_remove(prefixes, $1) WHERE guildid = $2", prefix, ctx.guild.id)
                 await ctx.send("Prefix removed!")
 
+    @commands.guild_only()
     @prefix.command()
     async def list(self, ctx):
         """List the guild's custom prefixes"""

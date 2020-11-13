@@ -2,7 +2,8 @@ import discord
 from discord.ext import commands, flags
 from logzero import setup_logger
 import typing
-from utils import checks, common
+from utils import checks, common, errors
+from datetime import datetime, timedelta
 
 # set up logging instance
 mod_console_logger = setup_logger(name='mod command logs', logfile='logs/mod.log', maxBytes=1000000)
@@ -14,13 +15,12 @@ class Mod(commands.Cog):
         self.bot = bot
 
     # mute commands
-    @checks.is_staff_or_perms("Mod", manage_roles=True)
-    @commands.command()
-    async def mute(self, ctx, member: discord.Member, *, reason: str = None):
+    async def mute_prep(self, ctx, member, mode: str):
+        """Sets up the mute commands"""
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "mute")
         if mod_bot_protection is not None:
             await ctx.send(mod_bot_protection)
-            return
+            return -1
 
         async with self.bot.db.acquire() as conn:
             muted_role_id = await conn.fetchval("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id)
@@ -28,27 +28,34 @@ class Mod(commands.Cog):
                 cog = self.bot.get_cog('Setup')
                 if not cog:
                     return await ctx.send(
-                        "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
+                        "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard. Or if you have an existing muted role. run `mutedrole set <role>` to set your muted role to the bot.")
                 await cog.muted_role_setup(ctx)
 
             muted_role_id = await conn.fetchval("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id)
             if muted_role_id is None:
-                return await ctx.send("No muted role found, please run the setup wizard for the muted role again")
+                await ctx.send("No muted role found, please run the setup wizard for the muted role again")
+                return -1
+
             muted_role = ctx.guild.get_role(muted_role_id)
             if muted_role is None:
                 await conn.execute("UPDATE roles SET mutedrole = NULL WHERE guildid = $1", ctx.guild.id)
                 cog = self.bot.get_cog('Setup')
                 if not cog:
-                    return await ctx.send(
+                    await ctx.send(
                         "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
                 await cog.muted_role_setup(ctx)
+                return -1
 
             try:
                 if muted_role in member.roles or await conn.fetchval(
                         "SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
                         ctx.guild.id) == member.id:
-                    await ctx.send("User is already muted")
-                    return
+                    if mode == 'timed':
+                        await ctx.send("User is already muted, converting to timed mute")
+                        return 1
+                    else:
+                        await ctx.send("User is already muted")
+                    return -1
             except TypeError:
                 pass
 
@@ -56,26 +63,76 @@ class Mod(commands.Cog):
                 await member.add_roles(muted_role)
             except discord.Forbidden:
                 await ctx.send("💢 I dont have permission to do this.")
-                return
+                return -1
 
-            await conn.execute("INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4)",
-                               member.id, ctx.author.id, ctx.guild.id, reason)
+            return 0
 
-            msg = f"You have been muted in {ctx.guild.name}"
-            if reason is not None:
-                msg += f" for the following reason: {reason}"
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_roles=True)
+    @commands.command()
+    async def mute(self, ctx, member: discord.Member, *, reason: str = None):
+        res = await self.mute_prep(ctx, member, 'normal')
+        """Mutes a member so they cannot speak in the server. (Mod+, manage_roles)"""
+        if res == -1:
+            return
 
-            try:
-                await member.send(msg)
-            except discord.Forbidden:
-                pass
-            await self.bot.discord_logger.mod_logs(ctx, 'mute', member, ctx.author, reason)
+        await self.bot.db.execute("INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4)",
+                                  member.id, ctx.author.id, ctx.guild.id, reason)
 
-            await ctx.send(f"{member} has been muted.")
+        msg = f"You have been muted in {ctx.guild.name}"
+        if reason is not None:
+            msg += f" for the following reason: {reason}"
 
+        try:
+            await member.send(msg)
+        except discord.Forbidden:
+            pass
+        await self.bot.discord_logger.mod_logs(ctx, 'mute', member, ctx.author, reason)
+
+        await ctx.send(f"{member} has been muted.")
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_roles=True)
+    @commands.command()
+    async def timemute(self, ctx, member: discord.Member, time: str, *, reason: str = None):
+        """Mutes a member for a limited number of time (Use dhms format, for example `5m` would be 5 minutes) (Mod+)"""
+        time_seconds = common.parse_time(time)
+        if time_seconds == -1:
+            return await ctx.send("Invalid time passed, please make sure its in the dhms format.")
+
+        res = await self.mute_prep(ctx, member, 'timed')
+        if res == -1:
+            return
+        elif res == 1:
+            m_id = await self.bot.db.fetchval("SELECT id FROM mutes WHERE userid = $1 AND guildid = $2", member.id,
+                                              ctx.guild.id)
+        else:
+            m_id = await self.bot.db.fetchval(
+                "INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4) RETURNING id",
+                member.id, ctx.author.id, ctx.guild.id, reason)
+
+        ts = (datetime.utcnow() + timedelta(seconds=time_seconds))
+        await ctx.send(f"{member} has been muted until {ts.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        try:
+            msg = f"You have been muted on {ctx.guild.name} until {ts.strftime('%Y-%m -%d %H:%M:%S')}"
+            if reason:
+                msg += f" for the reason: `{reason}`"
+            await member.send(msg)
+        except discord.Forbidden:
+            pass
+        try:
+            await self.bot.discord_logger.timed_mod_logs('mute', member, ctx.author, ts, reason)
+        except errors.loggingError:
+            pass
+
+        await self.bot.scheduler.add_timed_job('mute', datetime.utcnow(), timedelta(seconds=time_seconds),
+                                               action_id=m_id)
+
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command()
     async def unmute(self, ctx, member: discord.Member):
+        """Unmutes a member so they can speak again. (Mod+, manage_roles)"""
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "unmute")
         if mod_bot_protection is not None:
             await ctx.send(mod_bot_protection)
@@ -99,7 +156,7 @@ class Mod(commands.Cog):
                 await cog.muted_role_setup(ctx)
 
             try:
-                if not muted_role in member.roles or not await conn.fetchval(
+                if not muted_role in member.roles and not await conn.fetchval(
                         "SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
                         ctx.guild.id) == member.id:
                     await ctx.send("User is not muted")
@@ -120,6 +177,7 @@ class Mod(commands.Cog):
             await ctx.send(f"{member} has been unmuted.")
 
     # lockdown commands
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_channels=True)
     @flags.add_flag("--channel", "-c", type=discord.TextChannel, default=None)
     @flags.add_flag("--reason", '-r', type=str, default="", nargs="+")
@@ -182,6 +240,7 @@ class Mod(commands.Cog):
         await channel.send(channel_lock_msg)
         await self.bot.discord_logger.mod_logs(ctx, "lock", channel, ctx.author, reason)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_channels=True)
     @flags.add_flag("--channel", '-c', type=discord.TextChannel, default=None)
     @flags.command(aliases=['unlock'], )
@@ -216,7 +275,8 @@ class Mod(commands.Cog):
                             error_string = "I was unable to unlock all the permissions in this channel!"
                         continue
             elif isinstance(overwrite, discord.Member):
-                if channel.overwrites_for(overwrite).send_messages and channel.permissions_for(overwrite).manage_channels is False and overwrite != ctx.me:
+                if channel.overwrites_for(overwrite).send_messages and channel.permissions_for(
+                        overwrite).manage_channels is False and overwrite != ctx.me:
                     try:
                         perm_overwrite_obj.send_messages = False
                         perm_overwrite_obj.add_reactions = False
@@ -246,6 +306,7 @@ class Mod(commands.Cog):
                     await conn.fetchval("DELETE FROM approvedmembers WHERE userid = $1 AND guildid = $2", member.id,
                                         guild.id)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", kick_members=True)
     @commands.command()
     async def kick(self, ctx, member: discord.Member, *, reason: str = None):
@@ -274,11 +335,8 @@ class Mod(commands.Cog):
         await ctx.send(f"{member.name}#{member.discriminator} has been kicked {self.bot.discord_logger.emotes['kick']}")
         await self.bot.discord_logger.mod_logs(ctx, 'kick', member, ctx.author, reason)
 
-    @checks.is_staff_or_perms("Admin", ban_members=True)
-    @commands.guild_only()
-    @commands.command(aliases=['yeet'])
-    async def ban(self, ctx, member: typing.Union[discord.Member, int], *, reason: str = None):
-        """Ban a member. (Admin+)"""
+    async def ban_prep(self, ctx, member, mode, **kwargs):
+        """Boiler plate ban code"""
         if isinstance(member, int):
             try:
                 member = await self.bot.fetch_user(member)  # calls the api to find and ban the user
@@ -291,27 +349,71 @@ class Mod(commands.Cog):
                 return
 
         if isinstance(member, discord.Member):
+            if mode == 'timed':
+                msg = f"You have been banned from {ctx.guild.name} until {kwargs['timestamp'].strftime('%Y-%m -%d %H:%M:%S')}."
+            else:
+                msg = f"You have been banned from {ctx.guild.name}. This ban does not expire"
 
-            msg = f"You have been banned from {ctx.guild.name}"
-            if reason:
-                msg += f" for the following reason: `{reason}`"
+            if kwargs['reason']:
+                msg += f" for the following reason: `{kwargs['reason']}`"
 
             try:
                 await member.send(msg)
             except discord.Forbidden:
                 pass
-
             await self.remove_from_approval_list(member, ctx.guild)
 
+        return member
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Admin", ban_members=True)
+    @commands.command(aliases=['yeet'])
+    async def ban(self, ctx, member: typing.Union[discord.Member, int], *, reason: str = None):
+        """Ban a member. (Admin+)"""
+        user = await self.ban_prep(ctx, member, 'normal', reason=reason)
+
         try:
-            await ctx.guild.ban(member, reason=reason if reason is not None else "No reason given")
+            await ctx.guild.ban(user, reason=reason if reason is not None else "No reason given")
         except discord.Forbidden:
-            await ctx.send("Unable to ban discord.Member")
+            await ctx.send("I am unable to ban, check permissions!")
             return
 
-        await ctx.send(f"{member.name}#{member.discriminator} has been banned {self.bot.discord_logger.emotes['ban']}")
-        await self.bot.discord_logger.mod_logs(ctx, 'ban', member, ctx.author, reason)
+        await ctx.send(f"{user.name}#{user.discriminator} has been banned {self.bot.discord_logger.emotes['ban']}")
+        await self.bot.discord_logger.mod_logs(ctx, 'ban', user, ctx.author, reason)
 
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Admin", ban_members=True)
+    @commands.command()
+    async def timeban(self, ctx, member: discord.Member, time: str, *, reason: str = None):
+        """Bans a user for a limited amount of time. Time must be in dhms format: (example: 5m is 5 minutes)(Admin+ or ban perms)"""
+        time_seconds = common.parse_time(time)
+        if time_seconds == -1:
+            return await ctx.send("Invalid time passed, please make sure its in the dhms format.")
+        ts = (datetime.utcnow() + timedelta(seconds=time_seconds))
+        user = await self.ban_prep(ctx, member, 'timed', timestamp=ts, reason=reason)
+        try:
+            await ctx.guild.ban(user, reason=reason if reason else "No reason given")
+        except discord.Forbidden:
+            return await ctx.send("I am unable to ban, check permissions!")
+        if reason:
+            query = "INSERT INTO bans (userid, authorid, guildid, reason) VALUES ($1, $2, $3, $4) RETURNING id"
+            args = [user.id, ctx.author.id, ctx.guild.id, reason]
+        else:
+            query = "INSERT INTO bans (userid, authorid, guildid) VALUES ($1, $2, $3) RETURNING id"
+            args = [user.id, ctx.author.id, ctx.guild.id]
+
+        b_id = await self.bot.db.fetchval(query, *args)
+        await ctx.send(
+            f"{user} has been banned until {ts.strftime('%Y-%m -%d %H:%M:%S')} {self.bot.discord_logger.emotes['ban']}")
+        try:
+            await self.bot.discord_logger.timed_mod_logs("ban", user, ctx.author, ts, reason)
+        except errors.loggingError:
+            pass
+
+        await self.bot.scheduler.add_timed_job("ban", datetime.utcnow(), timedelta(seconds=time_seconds),
+                                               action_id=b_id)
+
+    @commands.guild_only()
     @checks.is_staff_or_perms("Admin", ban_members=True)
     @commands.command()
     async def softban(self, ctx, member: typing.Union[discord.Member, int], *, reason: str = None):
@@ -341,11 +443,14 @@ class Mod(commands.Cog):
             except discord.Forbidden:
                 await ctx.send("Unable to softban member")
 
-        await self.bot.db.execute("INSERT INTO bans (userID, authorid, guildID, reason) VALUES ($1, $2, $3, $4)", member.id, ctx.author.id, ctx.guild.id, reason)
+        await self.bot.db.execute("INSERT INTO bans (userID, authorid, guildID, reason) VALUES ($1, $2, $3, $4)",
+                                  member.id, ctx.author.id, ctx.guild.id, reason)
 
-        await ctx.send(f"{member.name}#{member.discriminator} has been softbanned {self.bot.discord_logger.emotes['ban']}")
+        await ctx.send(
+            f"{member.name}#{member.discriminator} has been softbanned {self.bot.discord_logger.emotes['ban']}")
         await self.bot.discord_logger.mod_logs(ctx, 'softban', member, ctx.author, reason)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Admin", ban_members=True)
     @commands.command()
     async def unsoftban(self, ctx, user: int):
@@ -359,10 +464,12 @@ class Mod(commands.Cog):
             else:
                 return await ctx.send("User is not softbanned")
 
-        await ctx.send(f"{member.name}#{member.discriminator} has been unsoftbanned {self.bot.discord_logger.emotes['warn']}")
+        await ctx.send(
+            f"{member.name}#{member.discriminator} has been unsoftbanned {self.bot.discord_logger.emotes['warn']}")
 
         await self.bot.discord_logger.unsoftban_log(ctx, member)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms('Mod', manage_channels=True)
     @commands.command()
     async def clear(self, ctx, num_messages: int, *, reason: str = None):
@@ -374,6 +481,7 @@ class Mod(commands.Cog):
 
         await self.bot.discord_logger.mod_logs(ctx, 'clear', ctx.channel, ctx.author, reason, num_messages=num_messages)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_channels=True)
     @commands.command()
     async def slowmode(self, ctx, channel: discord.TextChannel, slow_time, *, reason=None):

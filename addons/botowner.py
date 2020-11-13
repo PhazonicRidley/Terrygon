@@ -15,6 +15,12 @@ import platform
 botowner_console_logger = setup_logger(logfile="logs/botowner.log", maxBytes=1000000)
 
 
+def nondaemonrestart():
+    """Restarts the bot without a daemon"""
+    print("Non-daemon restarting")
+    os.execl(sys.executable, 'python3', 'main.py', *sys.argv[1:])
+
+
 class BotOwner(commands.Cog):
     """
     Bot Owner commands
@@ -180,11 +186,6 @@ class BotOwner(commands.Cog):
             await self.bot.logout()
             sys.exit(0)
 
-    def nondaemonrestart(self):
-        """Restarts the bot without a daemon"""
-        print("Non-daemon restarting")
-        os.execl(sys.executable, 'python3', 'main.py', *sys.argv[1:])
-
     @checks.is_bot_owner()
     @commands.command()
     async def restart(self, ctx):
@@ -207,10 +208,10 @@ class BotOwner(commands.Cog):
                 return await ctx.send("Restarted")
 
             else:
-                self.nondaemonrestart()
+                nondaemonrestart()
 
         else:
-            self.nondaemonrestart()
+            nondaemonrestart()
 
     @checks.is_bot_owner()
     @commands.command()
@@ -233,10 +234,10 @@ class BotOwner(commands.Cog):
                     return
                 else:
                     await ctx.send(f"```{table}```")
-            except asyncpg.PostgresError:
-                await ctx.send("Invalid SQL syntax")
+            except asyncpg.PostgresError as e:
+                await ctx.send(f"Postgres error: ```py{e.__traceback__}```")
             except TypeError:
-                await ctx.send("Command has run, no output")
+                await ctx.send("Command has ran, no output")
 
     @checks.is_bot_owner()
     @commands.command()

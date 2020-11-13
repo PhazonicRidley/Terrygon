@@ -25,7 +25,7 @@ class Memes(commands.Cog):
         self.bot = bot
 
     @commands.guild_only()
-    @commands.command(aliases=['m', 'M'])
+    @commands.command(aliases=['m', 'M', 'maymay'])
     async def meme(self, ctx, meme_name: str):
         """Posts a saved meme, guild memes have priority"""
         async with self.bot.db.acquire() as conn:
@@ -40,24 +40,33 @@ class Memes(commands.Cog):
 
             return await ctx.send(meme)
 
+    @commands.guild_only()
     @checks.is_trusted_or_perms(manage_messages=True)
-    @commands.command()
-    async def addmeme(self, ctx, name, *, meme_content):
+    @commands.command(name="addmeme")
+    async def add_meme(self, ctx, name, *, meme_content =""):
         """Adds a guild meme to the bot (Trusted+ only)"""
+        attachments = ctx.message.attachments
+        if len(attachments) > 10:
+            return await ctx.send("Too many attachments!")
 
+        meme_content += "  "
+        for a in attachments:
+            meme_content += a.url + "\n"
         await self.setup_db_guild(ctx.guild.id)
         await self.add_meme_db(escape_mentions(name), escape_mentions(meme_content), ctx.guild.id)
         await ctx.send("Added meme")
 
+    @commands.guild_only()
     @checks.is_trusted_or_perms(manage_messages=True)
-    @commands.command()
-    async def delmeme(self, ctx, meme_name: str):
+    @commands.command(name="delmeme")
+    async def del_meme(self, ctx, meme_name: str):
         """Removes a guild meme from the bot (Trusted+ only)"""
         await self.setup_db_guild(ctx.guild.id)
         await ctx.send(await self.del_meme_db(meme_name, ctx.guild.id))
 
-    @commands.command()
-    async def listmemes(self, ctx):
+    @commands.guild_only()
+    @commands.command(name="listmemes")
+    async def list_memes(self, ctx):
         """Lists a guild's memes as well as the bot's global memes"""
         await self.setup_db_guild(ctx.guild.id)
         guild_memes = (await self.bot.db.fetchval("SELECT guildmemes FROM memes WHERE guildid = $1", ctx.guild.id))
@@ -87,8 +96,8 @@ class Memes(commands.Cog):
         await pages.start(ctx)
 
     @checks.is_bot_owner()
-    @commands.command()
-    async def addglobalmeme(self, ctx, name, *, meme_content):
+    @commands.command(name="addglobalmeme")
+    async def add_global_meme(self, ctx, name, *, meme_content):
         """Adds a global meme to the bot that can be used anywhere (Bot owner's only)"""
         await self.setup_db_guild(0)
         await self.add_meme_db(escape_mentions(name), escape_mentions(meme_content), 0)
@@ -96,7 +105,7 @@ class Memes(commands.Cog):
 
     @checks.is_bot_owner()
     @commands.command()
-    async def delglobalmeme(self, ctx, meme_name: str):
+    async def del_global_meme(self, ctx, meme_name: str):
         """Removes a global meme"""
         await ctx.send(await self.del_meme_db(meme_name, 0))
 
@@ -106,7 +115,7 @@ class Memes(commands.Cog):
         if member is None:
             member = ctx.author
         # this is hard coded lol
-        await ctx.send(f"I've beaned {member}. <a:abeanhammer:511352809245900810>")
+        await ctx.send(f"I've beaned {member}. <a:abeanhammer:511352809245900810>") # yes i know its hardcoded, you can ligma
 
     @commands.command()
     async def kicc(self, ctx, member: discord.Member = None):

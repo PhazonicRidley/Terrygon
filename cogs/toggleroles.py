@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, menus
+from discord.ext import commands, flags
 from discord.utils import escape_mentions
 import json
 import typing
@@ -16,8 +16,9 @@ class ToggleRoles(commands.Cog):
     async def cog_before_invoke(self, ctx):
         await self.setup_db_guild(ctx.guild.id)
 
-    @commands.command()
-    async def togglerole(self, ctx, keyword: str = None):
+    @commands.guild_only()
+    @commands.command(name="togglerole")
+    async def toggle_role(self, ctx, keyword: str = None):
         """Toggle a role! provide no argument if you wish to see the list"""
         if keyword is None:
             return await self.list_roles(ctx)
@@ -83,9 +84,10 @@ class ToggleRoles(commands.Cog):
                                            clear_reactions_after=True, check_embeds=True)
         await pages.start(ctx)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
-    @commands.command()
-    async def deltogglerole(self, ctx, keyword: str):
+    @commands.command(name="deltogglerole")
+    async def del_toggle_role(self, ctx, keyword: str):
         """Removes a toggleable role from the database (Mod+ only)"""
         async with self.bot.db.acquire() as conn:
 
@@ -115,10 +117,11 @@ class ToggleRoles(commands.Cog):
                 except discord.Forbidden:
                     await msg.edit("I cannot delete this role")
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.guild_only()
-    @commands.command()
-    async def addtogglerole(self, ctx, emoji: str, keyword: str, role: typing.Union[discord.Role, str], *, description: str):
+    @checks.is_staff_or_perms("Mod", manage_roles=True)
+    @commands.command(name="addtogglerole")
+    async def add_toggle_role(self, ctx, emoji: str, keyword: str, role: typing.Union[discord.Role, str], *,
+                              description: str):
         """
         Adds a toggleable role (Mod+ only)
         - Emoji, the emote displayed when listing (if you do not want an emoji, type 'none' or 'noemoji' for this argument

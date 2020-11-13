@@ -28,10 +28,10 @@ class Warn(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.guild_only()
-    @commands.command()
-    async def softwarn(self, ctx, member: discord.Member, *, reason=None):
+    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
+    @commands.command(name="softwarn")
+    async def soft_warn(self, ctx, member: discord.Member, *, reason=None):
         """Gives a user a warning without punishing them on 3, 4, and 5 warns (Mod+)"""
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "warn")
         if mod_bot_protection is not None:
@@ -64,7 +64,8 @@ class Warn(commands.Cog):
             pass
 
     @commands.guild_only()
-    @commands.group(name="punishments", invoke_without_command=True, aliases=['punishment', 'warnpunishments', 'warnpunishment'])
+    @commands.group(name="punishments", invoke_without_command=True,
+                    aliases=['punishment', 'warnpunishments', 'warnpunishment'])
     async def warn_punishments(self, ctx):
         """Commands related to setting warn punishments"""
         await ctx.send_help(ctx.command)
@@ -86,6 +87,7 @@ class Warn(commands.Cog):
 
         await ctx.send(embed=out)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @warn_punishments.command()
     async def set(self, ctx, warn_number: int, warn_punishment: str):
@@ -98,7 +100,8 @@ class Warn(commands.Cog):
         async with self.bot.db.acquire() as conn:
             if await conn.fetchval("SELECT warn_punishments FROM guild_settings WHERE guildid = $1",
                                    ctx.guild.id) is None:
-                await conn.execute("UPDATE guild_settings SET warn_punishments = json_build_object() WHERE guildid = $1", ctx.guild.id)
+                await conn.execute(
+                    "UPDATE guild_settings SET warn_punishments = json_build_object() WHERE guildid = $1", ctx.guild.id)
 
             await conn.execute(
                 "UPDATE guild_settings SET warn_punishments = warn_punishments::jsonb || jsonb_build_object($1::INT, $2::TEXT) WHERE guildid = $3",
@@ -118,8 +121,8 @@ class Warn(commands.Cog):
         except errors.loggingError:
             pass
 
-    @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @warn_punishments.command()
     async def unset(self, ctx, warn_number):
         """Unsets a warn punishment"""
@@ -200,8 +203,8 @@ class Warn(commands.Cog):
         except errors.loggingError:
             pass
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.command()
     async def warn(self, ctx, member: discord.Member, *, reason=None):
         """Warns a user, set your punishments with the `punishment set` command"""
@@ -253,8 +256,8 @@ class Warn(commands.Cog):
         if warn_num > int(highest_punishment_value):
             await self.punish(ctx, member, warn_num, punishment_data[str(highest_punishment_value)])
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.command(aliases=["delwarn", 'unwarn'])
     async def deletewarn(self, ctx, member: discord.Member, warn_num: int):
 
@@ -335,8 +338,8 @@ class Warn(commands.Cog):
             embed.set_footer(text="This user is not in the server")
         await ctx.send(embed=embed)
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.command()
     async def clearwarns(self, ctx, member: typing.Union[discord.Member, int]):
         """Clear's all warns from a user"""

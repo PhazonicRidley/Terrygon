@@ -1,3 +1,4 @@
+import asyncio
 from time import strftime
 
 import discord
@@ -7,12 +8,20 @@ import re
 
 from main import read_config
 from utils import checks, common
-from datetime import datetime
+from datetime import datetime, timedelta
 import typing
 import collections
 from logzero import setup_logger
 
 misccmdlogger = setup_logger(logfile="logs/misc.log", maxBytes=1000000)
+
+
+class Reminder:
+
+    def __init__(self, id, reminder, time_stamp):
+        self.id = id
+        self.reminder = reminder
+        self.time_stamp = time_stamp
 
 
 class Misc(commands.Cog):
@@ -282,12 +291,78 @@ class Misc(commands.Cog):
         await self.bot.change_presence(status=self.curStatus, activity=self.curActivity)
         await ctx.send(f"Status changed to {new_status}")
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command()
     async def speak(self, ctx, channel: discord.TextChannel, *, message):
         """Make the bot speak"""
         await ctx.message.delete()
         await channel.send(message)
+
+    @commands.group(invoke_without_command=True, aliases=['reminder'])
+    async def remind(self, ctx, time: str, *, text):
+        """Reminds you about something in dms! (Please make sure you have your dms on if you are using this from a server), time is in dhms format ie `10 minutes` would be `10m`"""
+        time_seconds = common.parse_time(time)
+        if time_seconds == -1:
+            return await ctx.send("Invalid time passed!")
+
+        if len(await self.bot.db.fetch("SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id'::text = $1", str(ctx.author.id))) + 1 > 10:
+            return await ctx.send("You have too many reminders! you can delete some with remind del <number>")
+
+        reminder_data = {
+            "user_id": ctx.author.id,
+            "reminder": text
+        }
+        await ctx.send(f"OK, I will remind you about `{text}`. Please make sure I can dm you!")
+        await self.bot.scheduler.add_timed_job('reminder', creation=datetime.utcnow(),
+                                               expiration=timedelta(seconds=time_seconds), **reminder_data)
+
+    @flags.add_flag("--dm", '-d', action="store_true", default=False)
+    @remind.command(cls=flags.FlagCommand, name="list")
+    async def list_reminders(self, ctx, **flag_commands):
+        """Lists your current reminders"""
+
+        reminders = []
+        records = await self.bot.db.fetch("SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id' = $1",
+                                          str(ctx.author.id))
+        for r in records:
+            reminders.append(Reminder(r['id'], r['extra']['reminder'], r['expiration']))
+
+        out = discord.Embed(title=f"Reminders for {ctx.author}", color=ctx.author.color.value)
+        if len(reminders) == 0:
+            out.description = "No reminders found. Use `remind` to set some"
+
+        else:
+            for num, r in enumerate(reminders, start=1):
+                out.add_field(name=f"#{num}",
+                              value=f"Job ID: {r.id} Reminder: `{r.reminder}`\nExpiration: `{r.time_stamp}`",
+                              inline=False)
+
+        out.set_footer(text=f"{len(reminders)} total reminder(s).")
+        if flag_commands.get('dm'):
+            try:
+                await ctx.author.send(embed=out)
+                await ctx.message.add_reaction("\U0001f4ec")
+            except discord.Forbidden:
+                await ctx.send("I cannot dm you! please enable dms on this server!")
+        else:
+            await ctx.send(embed=out)
+
+    @remind.command(name="deletereminder", aliases=['delreminder', 'delremind', 'deleteremind', 'del'])
+    async def delete_reminder(self, ctx, reminder_num: int):
+        """Deletes a reminder"""
+        records = await self.bot.db.fetch("SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id' = $1",
+                                          str(ctx.author.id))
+        deleted_reminder = None
+        for num, r in enumerate(records, start=1):
+            if num == reminder_num:
+                deleted_reminder = Reminder(r['id'], r['extra']['reminder'], r['expiration'])
+
+        if deleted_reminder:
+            await self.bot.db.execute("DELETE FROM timed_jobs WHERE type = 'reminder' AND id = $1", deleted_reminder.id)
+            await ctx.send("Reminder deleted.")
+        else:
+            await ctx.send("No reminder by that number found.")
 
 
 def setup(bot):

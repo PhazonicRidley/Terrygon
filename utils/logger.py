@@ -1,4 +1,5 @@
 import typing
+from datetime import datetime, timedelta
 
 import discord
 import logzero
@@ -91,7 +92,9 @@ class Logger:
                     if embed:
                         await log_channel.send(embed=embed)
 
-    async def mod_logs(self, ctx, log_type: str, target: typing.Union[discord.Member, discord.TextChannel, discord.Role], author: discord.Member, reason=None, **kwargs):
+    async def mod_logs(self, ctx, log_type: str,
+                       target: typing.Union[discord.Member, discord.TextChannel, discord.Role], author: discord.Member,
+                       reason=None, **kwargs):
         """Logs bans, kicks, mutes, unmutes, warns, and other moderation actions in the mod logs channel"""
 
         # logs bans and soft bans
@@ -101,7 +104,9 @@ class Logger:
                 logging_msg += f"\n{self.emotes['reason']}Reason: {reason}"
 
         # logs mutes, unmutes, approves, and unapproves.
-        elif (log_type == 'mute' or log_type == 'unmute' or log_type == 'approve' or log_type == 'unapprove') and isinstance(target, discord.Member):
+        elif (
+                log_type == 'mute' or log_type == 'unmute' or log_type == 'approve' or log_type == 'unapprove') and isinstance(
+            target, discord.Member):
             logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}d:__** {author.mention} | {author.name}#{author.discriminator} {log_type}d {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
             if reason is not None:
                 logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
@@ -115,10 +120,10 @@ class Logger:
             if reason is not None:
                 logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
-        #elif isinstance(target, discord.Role):
-          #  logging_msg = f"{self.emotes[log_type]} **__Role {log_type.title()}ed:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ed {escape_mentions(target.mention)} | {target.name}\n{self.emotes['id']} Role ID: {target.id}"
-          #  if reason is not None:
-           #     logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
+        # elif isinstance(target, discord.Role):
+        #  logging_msg = f"{self.emotes[log_type]} **__Role {log_type.title()}ed:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ed {escape_mentions(target.mention)} | {target.name}\n{self.emotes['id']} Role ID: {target.id}"
+        #  if reason is not None:
+        #     logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
         # catch for all member actions that don't have special past participles
         elif isinstance(target, discord.Member) or isinstance(target, discord.User):
@@ -145,7 +150,8 @@ class Logger:
 
     # TODO add timed functionality
     async def channel_block(self, log_type: str, member: discord.Member, author: discord.Member,
-                            channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel], block_list: typing.List[str], reason: str = None):
+                            channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel],
+                            block_list: typing.List[str], reason: str = None):
         """Logs channel blocks"""
         channel_msg = ""
         if isinstance(channel, discord.CategoryChannel):
@@ -156,6 +162,8 @@ class Logger:
         logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}ed:__** {author.mention} has {log_type}ed {member.mention} | {member} from being able to `{'`, `'.join(block_list)}` in {channel_msg}\n{self.emotes['id']} User ID: {member.id}"
         if reason:
             logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
+        elif not reason and log_type == 'block':
+            logging_msg += "\nNOTE: It is reccomended to add a reason to blocks with `-r [reason]...` the -r flag goes at the end of the command, everything that follows it is apart of the reason."
 
         await self.dispatch("modlogs", author.guild, log_type, logging_msg)
 
@@ -326,9 +334,7 @@ class Logger:
         try:
             await self.dispatch('modlogs', ctx.guild, 'unban', logging_msg)
         except errors.loggingError:
-            await ctx.send("Please configure logging for modlogs using `[p]logchannel set modlogs #<yourchannel>`")
-
-
+            pass
 
     async def auto_mod_setup(self, author: discord.Member, action: str, **kwargs):
         """Sets up auto-mod logging"""
@@ -337,3 +343,19 @@ class Logger:
             logging_msg += f"when a user gets {kwargs['warn_num']} warn(s)."
 
         await self.dispatch('modlogs', author.guild, action, logging_msg)
+
+    async def expiration_mod_logs(self, type: str, guild: discord.Guild, author: discord.Member, user: discord.Member):
+        """Logs a timed mod action removal on a user"""
+        msg = f"{self.emotes['un' + type]} **{type.title()} Expired:** {user.mention}'s {type} has expired.\n{self.emotes['id']} ID: {user.id}\n:police_car: Moderator: {author}"
+
+        await self.dispatch('modlogs', guild, type, msg)
+
+    async def timed_mod_logs(self, log_type: str, user: discord.Member, author: discord.Member, time: datetime, reason: str = None):
+        """Logs timed moderation actions"""
+        msg = f"""{self.emotes[log_type]} **__Timed {log_type.title()}:__** {author.mention} has given {user.mention} a timed {log_type}. (All dates and times are in UTC) \n{self.emotes['creationdate']} Expiration: `{time.strftime("%Y-%m -%d %H:%M:%S")}`\n{self.emotes['id']} ID: {user.id}"""
+
+        if reason:
+            msg += f"\n{self.emotes['reason']} Reason: {reason}"
+
+        await self.dispatch('modlogs', author.guild, log_type, msg)
+

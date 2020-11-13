@@ -124,6 +124,12 @@
         guildid BIGINT NOT NULL,
         blocktype TEXT[] NOT NULL,
         channelid BIGINT NOT NULL,
-        reason TEXT,
-        timer TIMESTAMP
+        reason TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS timed_jobs (
+        id SERIAL PRIMARY KEY,
+        type TEXT NOT NULL,
+        expiration TIMESTAMP NOT NULL,
+        extra jsonb
     );

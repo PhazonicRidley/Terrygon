@@ -37,14 +37,15 @@ class Colors(commands.Cog):
                     pass
 
     # communal roles commands
-    @commands.group(aliases=['communalcolor', 'communalcolour'], invoke_without_command=True)
     @commands.guild_only()
-    async def communalcolors(self, ctx):
+    @commands.group(name="communalcolors", aliases=['communalcolor', 'communalcolour'], invoke_without_command=True)
+    async def communal_colors(self, ctx):
         """Commands related to the communal color role system (Only needed by servers that use the communal color system"""
         await ctx.send_help(ctx.command)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
-    @communalcolors.command()
+    @communal_colors.command()
     async def add(self, ctx, keyword, role: typing.Union[discord.Role, str], color_hex: str = None):
         """Sets a color role, adds one if it doesnt exist (Moderators or manage roles)"""
 
@@ -94,8 +95,9 @@ class Colors(commands.Cog):
             await conn.execute(final_query, keyword, role_json, ctx.guild.id)
         await ctx.send(f"Added communal color {keyword}")
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
-    @communalcolors.command(aliases=['del'])
+    @communal_colors.command(aliases=['del'])
     async def delete(self, ctx, keyword: str):
         """Removes a communal color and deletes the role if desired (Moderators or manage roles)"""
         if await self.check_color_mode(ctx.guild, 'communal'):
@@ -124,7 +126,8 @@ class Colors(commands.Cog):
                     ctx.guild.id)
                 await msg.edit(content=final_msg)
 
-    @communalcolors.command()
+    @commands.guild_only()
+    @communal_colors.command()
     async def list(self, ctx):
         """Lists communal color roles"""
         if await self.check_color_mode(ctx.guild, 'communal'):
@@ -162,15 +165,16 @@ class Colors(commands.Cog):
         await pages.start(ctx)
 
     # personal role commands
-    @commands.group(invoke_without_command=True, aliases=['personalcolors', 'personalcolours', 'personalcolour'])
     @commands.guild_only()
-    async def personalcolor(self, ctx):
+    @commands.group(name="personalcolor", invoke_without_command=True, aliases=['personalcolors', 'personalcolours', 'personalcolour'])
+    async def personal_color(self, ctx):
         """Commands relating to the personal color role system (Only needed by servers with a personal color system)"""
         await ctx.send_help(ctx.command)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @personalcolor.command()
-    async def delall(self, ctx):
+    @personal_color.command(name="delall")
+    async def del_all(self, ctx):
         """Manually remove all personal color roles (Requires Administrator or Owner)"""
         res, msg = await paginator.YesNoMenu(
             "Really delete all personalized color roles from server and the database? This action is irreversible").prompt(
@@ -194,9 +198,10 @@ class Colors(commands.Cog):
             await msg.edit(content="Cancelled")
             return
 
+    @commands.guild_only()
     @checks.is_staff_or_perms('Mod', manage_roles=True)
-    @personalcolor.command()
-    async def delmember(self, ctx, member: discord.Member = None):
+    @personal_color.command(name="delmember")
+    async def del_member(self, ctx, member: discord.Member = None):
         """Manually deletes a color role for a user (Requires you to be able to manage roles or Mod to delete another's color role)"""
 
         if member is None or member == ctx.author:
@@ -229,18 +234,20 @@ class Colors(commands.Cog):
 
                 await conn.execute(del_query, str(member.id), ctx.guild.id)
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
-    @personalcolor.command()
-    async def manualadd(self, ctx, role: discord.Role, member: discord.Member):
+    @personal_color.command(name="manualadd")
+    async def manual_add(self, ctx, role: discord.Role, member: discord.Member):
         """Adds an already existing personal color to the database (Mod+ or manage_roles)"""
         if await self.check_color_mode(ctx.guild, 'personal'):
             return await ctx.send("Current color mode is not personal, thus you have no need for this!")
 
         await ctx.send((await self.add_personal_color_role(ctx, role, member))[0])
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @personalcolor.command()
-    async def manualaddall(self, ctx):
+    @personal_color.command(name="manualladdall")
+    async def manual_add_all(self, ctx):
         """Tries to add all existing personal color roles to the database, (Owners only or administrator perms)"""
         if await self.check_color_mode(ctx.guild, 'personal'):
             return await ctx.send("Current color mode is not personal, thus you have no need for this!")
@@ -260,8 +267,9 @@ class Colors(commands.Cog):
             successful_adds) != 1 else f"{len(successful_adds)} personal color role added to the database")
         await ctx.send(embed=embed)
 
-    @personalcolor.command(aliases=['checkcolor', 'checkhex', 'getcolor', 'hex'])
-    async def gethex(self, ctx, member: discord.Member = None):
+    @commands.guild_only()
+    @personal_color.command(name="gethex", aliases=['checkcolor', 'checkhex', 'getcolor', 'hex'])
+    async def get_hex(self, ctx, member: discord.Member = None):
         """Gets personal role color"""
         if await self.check_color_mode(ctx.guild, 'personal'):
             return await ctx.send("Current color mode is not personal, thus you have no need for this!")
@@ -406,15 +414,17 @@ class Colors(commands.Cog):
                 except Exception:
                     pass
 
-    @commands.command(aliases=['curmode', 'curcolormode'])
-    async def currentcolormode(self, ctx):
+    @commands.guild_only()
+    @commands.command(name="currentcolormode", aliases=['curmode', 'curcolormode'])
+    async def current_color_mode(self, ctx):
         """Shows current guild's color mode"""
         cur_mode = await self.get_color_mode(ctx.guild)
         await ctx.send(f"{ctx.guild.name}'s current color role mode is {cur_mode.title()}")
 
+    @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
-    @commands.command()
-    async def switchcolormode(self, ctx, mode):
+    @commands.command(name="switchcolormode")
+    async def switch_color_mode(self, ctx, mode):
         """Switches the server's color mode (Owners or administrator permissions) valid modes are `communal`, `personal`, or `disabled`"""
         async with self.bot.db.acquire() as conn:
             modes = ('communal', 'personal', 'disabled')

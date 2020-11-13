@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, flags
 import typing
 import re
-from utils import checks, common, errors
+from utils import checks, errors
 
 
 async def apply_blocks(member: discord.Member, channel: typing.Union[
@@ -288,6 +288,7 @@ class Block(commands.Cog):
             await ctx.send(
                 f"{member} can `{'`, `'.join(unblock_list)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name} again.")
 
+    @commands.guild_only()
     @checks.is_staff_or_perms('Mod', manage_roles=True)
     @commands.command()
     async def unblockall(self, ctx, member: discord.Member):
@@ -350,6 +351,7 @@ class Block(commands.Cog):
         embed.description = bmsg
         return embed
 
+    @commands.guild_only()
     @commands.command()
     async def listblocks(self, ctx, member: discord.Member = None):
         """Checks what channels you are blocked from, only staff may check other users"""
@@ -368,7 +370,7 @@ class Block(commands.Cog):
         await ctx.send(embed=embed)
 
 
-class DbBlocks():
+class DbBlocks:
 
     def __init__(self, block_types: list,
                  channel: typing.Union[int, discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel],

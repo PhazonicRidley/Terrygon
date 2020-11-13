@@ -37,7 +37,7 @@ class Events(commands.Cog):
         elif len(after.roles) > len(before.roles):
             await self.bot.discord_logger.role_update("add role", before, after)
 
-    async def addGuild(self, new_guild):
+    async def add_guild(self, new_guild):
         async with self.bot.db.acquire() as conn:
             schema_list = ['log_channels', 'roles', 'guild_settings', 'trustedusers']
             for table in schema_list:
@@ -148,7 +148,7 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        await self.addGuild(guild)
+        await self.add_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
@@ -187,24 +187,24 @@ class Events(commands.Cog):
                     return
 
     @checks.is_bot_owner()
-    @commands.command()
-    async def autoguildadd(self, ctx):
+    @commands.command(name="autoguildadd")
+    async def auto_guild_add(self, ctx):
         """Automatically tries to add every guild the bot is in to the database, if they're already in there, nothing happens (Bot owner only)"""
         for guild in self.bot.guilds:
-            await self.addGuild(guild)
+            await self.add_guild(guild)
         await ctx.send("Added all guilds to the database!")
 
     @checks.is_bot_owner()
-    @commands.command()
-    async def manualguildadd(self, ctx, new_guild_id):
+    @commands.command(name="manualguildadd")
+    async def manual_guild_add(self, ctx, new_guild_id):
         """Manually adds a guild to the database (Bot owner only)"""
         newGuild = await self.bot.fetch_guild(new_guild_id)
-        await self.addGuild(newGuild)
+        await self.add_guild(newGuild)
         await ctx.send(f"Guild {newGuild.name} added to the database manually")
 
     @checks.is_bot_owner()
-    @commands.command()
-    async def manualguildremove(self, ctx, guild_id):
+    @commands.command(name="manualguildremove")
+    async def manual_guild_remove(self, ctx, guild_id):
         """Fully removes a guild and its data (Bot owner only)"""
         guild = await self.bot.fetch_guild(guild_id)
         async with self.bot.db.acquire() as conn:

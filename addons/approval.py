@@ -10,22 +10,22 @@ class Approval(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.group(name="approvalsystem", invoke_without_command=True)
     async def approval_system_manager(self, ctx):
         """Manages a server's approval system."""
         await ctx.send_help(ctx.command)
 
-    @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @approval_system_manager.command(name="toggle")
     async def toggle(self, ctx):
         """Enables or disables a server's approval system"""
         async with self.bot.db.acquire() as conn:
             if await conn.fetchval("SELECT approvedRole FROM roles WHERE guildID = $1",
                                    ctx.guild.id) is None or await conn.fetchval(
-                    "SELECT approvalchannel FROM guild_settings WHERE guildid = $1", ctx.guild.id):
+                "SELECT approvalchannel FROM guild_settings WHERE guildid = $1", ctx.guild.id):
                 await ctx.send(
                     "Missing registered approval role or approval gateway channel. To configure these, please use `approvalsystem configure`. This command is for enabling or disabling an existing approval system!")
                 return
@@ -47,8 +47,8 @@ class Approval(commands.Cog):
                     pass
                 await ctx.send("Approval system enabled! use approve to let new members in")
 
-    @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @flags.add_flag('--channel', '-c', type=discord.TextChannel, default=None)
     @flags.add_flag('--role', '-r', type=discord.Role, default=None)
     @approval_system_manager.command(cls=flags.FlagCommand)
@@ -122,8 +122,8 @@ class Approval(commands.Cog):
         except errors.loggingError:
             pass
 
-    @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Owner", administrator=True)
     @approval_system_manager.command()
     async def remove(self, ctx):
         """Disables and removes an approval system fully from a server"""
@@ -168,7 +168,7 @@ class Approval(commands.Cog):
         else:
             try:
                 await self.bot.db.execute("UPDATE guild_settings SET approvedchannel = NULL WHERE guildid = $1",
-                                      ctx.guild.id)
+                                          ctx.guild.id)
             except asyncpg.UndefinedColumnError:
                 pass
             await ctx.send("Approval channel has already been delete, removing from database.")
@@ -180,8 +180,8 @@ class Approval(commands.Cog):
         except errors.loggingError:
             pass
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command()
     async def approve(self, ctx, member: discord.Member):
         """Approve members"""
@@ -213,8 +213,8 @@ class Approval(commands.Cog):
             except Forbidden:
                 pass
 
-    @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command()
     async def unapprove(self, ctx, member: discord.Member):
         """Unapprove members"""
