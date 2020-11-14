@@ -240,21 +240,23 @@ class Warn(commands.Cog):
 
         msg += f"This is warning {warn_num}\n"
 
-        highest_punishment_value = max(punishment_data.keys())
-        if str(warn_num + 1) in list(punishment_data.keys()):
-            msg += f"The next warn will **{punishment_data[str(warn_num + 1)]}** you."
+        if punishment_data:
+            highest_punishment_value = max(punishment_data.keys())
+            if str(warn_num + 1) in list(punishment_data.keys()):
+                msg += f"The next warn will **{punishment_data[str(warn_num + 1)]}** you."
 
         try:
             await member.send(msg)
         except Forbidden:
             pass
+        
+        if punishment_data:
+            if str(warn_num) in list(punishment_data.keys()):
+                await self.punish(ctx, member, warn_num, punishment_data[str(warn_num)])
 
-        if str(warn_num) in list(punishment_data.keys()):
-            await self.punish(ctx, member, warn_num, punishment_data[str(warn_num)])
-
-        # just in case
-        if warn_num > int(highest_punishment_value):
-            await self.punish(ctx, member, warn_num, punishment_data[str(highest_punishment_value)])
+            # just in case
+            if warn_num > int(highest_punishment_value):
+                await self.punish(ctx, member, warn_num, punishment_data[str(highest_punishment_value)])
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
