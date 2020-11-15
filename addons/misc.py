@@ -71,11 +71,7 @@ class Misc(commands.Cog):
     @commands.command()
     async def ping(self, ctx):
         """Pong!"""
-        m_time = ctx.message.created_at
-        cur_time = datetime.now()
-        latency = cur_time - m_time
-        p_time = str(latency.microseconds / 1000.0)
-        return await ctx.send(":ping_pong:! Pong! Response time: {} ms".format(p_time))
+        return await ctx.send(f":ping_pong:! Pong! Response time: {round(self.bot.latency * 1000, 2)} ms")
 
     @commands.command(aliases=['ui', 'onion'])
     async def userinfo(self, ctx, member: typing.Union[discord.Member, int, str] = None):
