@@ -371,6 +371,8 @@ class Mod(commands.Cog):
     async def ban(self, ctx, member: typing.Union[discord.Member, int], *, reason: str = None):
         """Ban a member. (Admin+)"""
         user = await self.ban_prep(ctx, member, 'normal', reason=reason)
+        if not user:
+            return
 
         try:
             await ctx.guild.ban(user, reason=reason if reason is not None else "No reason given")
@@ -391,6 +393,8 @@ class Mod(commands.Cog):
             return await ctx.send("Invalid time passed, please make sure its in the dhms format.")
         ts = (datetime.utcnow() + timedelta(seconds=time_seconds))
         user = await self.ban_prep(ctx, member, 'timed', timestamp=ts, reason=reason)
+        if not user:
+            return
         try:
             await ctx.guild.ban(user, reason=reason if reason else "No reason given")
         except discord.Forbidden:
