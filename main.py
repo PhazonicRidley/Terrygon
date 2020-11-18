@@ -149,7 +149,7 @@ class Terrygon(commands.Bot):
             await ctx.send("No staff roles in the database for this server please add some!")
 
         # handles all bot owner commands that are used by someone who is not a bot owner.
-        elif isinstance(error, errors.botOwnerError):
+        elif isinstance(error, (errors.botOwnerError, commands.errors.NotOwner)):
             await ctx.send("You cannot use this as you are not a bot owner")
 
         # handles trusted commands used by untrusted users.
