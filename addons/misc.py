@@ -105,7 +105,7 @@ class Misc(commands.Cog):
             except discord.NotFound:
                 ban = None
 
-            embed = discord.Embed(title=f'**Userinfo for {user.name}#{str(user.discriminator)}**')
+            embed = discord.Embed(title=f'**Userinfo for {user.name}#{str(user.discriminator)}**', color=common.gen_color(user.id))
             embed.description = f"**User's ID:** {str(user.id)} \n **Default Profile Picture:** {str(user.default_avatar)} \n  **Created on:** {str(user.created_at)}\n **Bot:** {user.bot}\n {f'**Banned, reason:** {ban.reason}' if ban is not None else ''}"
             embed.set_footer(text=f'{user.name}#{user.discriminator} is not in your server.')
             embed.set_thumbnail(url=user.avatar_url)
@@ -132,7 +132,7 @@ class Misc(commands.Cog):
             return
 
         embed = discord.Embed(title=f"Avatar for {user.name}#{user.discriminator}",
-                              color=user.color.value if in_server else 0x99aab5)
+                              color=user.color.value if in_server else common.gen_color(user.id))
         embed.set_image(url=user.avatar_url_as(static_format='png'))
         await ctx.send(embed=embed)
 
