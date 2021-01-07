@@ -86,7 +86,7 @@ class Approval(commands.Cog):
                 await msg.edit(content="Approval role created!")
             else:
                 await msg.edit(
-                    content="You need an approval role for the approval system to work properly, if you have an existing one specify one with `-r <channel>`")
+                    content="You need an approval role for the approval system to work properly, if you have an existing one specify one with `-r <role>`")
 
         else:
             approval_role = flag_options['role']
