@@ -87,6 +87,7 @@ class Terrygon(commands.Bot):
         console_logger.info("Database pool has started!")
         self.discord_logger = discord_logger.Logger(self)
         self.scheduler = scheduler.Scheduler(self)
+        self.is_in_menu = False  # flag to check if we are in a menu
         console_logger.info("Discord Logger has been configured")
 
     async def prepare_db(self):

@@ -7,7 +7,7 @@ from discord.ext import commands, flags
 import re
 
 from main import read_config
-from utils import checks, common
+from utils import checks, common, paginator
 from datetime import datetime, timedelta
 import typing
 import collections
@@ -359,6 +359,15 @@ class Misc(commands.Cog):
             await ctx.send("Reminder deleted.")
         else:
             await ctx.send("No reminder by that number found.")
+
+
+    @commands.command(name='menu')
+    async def menu_testing(self, ctx):
+        res = await paginator.DynamicOptionMenu("cool", "option", "third", 'even cooler', 'bruh', 'pog', 'im running', 'out', 'of things').prompt(ctx)
+        await ctx.send(f"The result is {res}")
+
+
+
 
 
 def setup(bot):

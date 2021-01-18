@@ -73,7 +73,7 @@ class Events(commands.Cog):
                                    member.id, member.guild.id):
                 try:
                     issuer_id = await conn.fetchval("SELECT authorID FROM bans WHERE userID = $1 AND guildID = $2",
-                                                   member.id, member.guild.id)
+                                                    member.id, member.guild.id)
                     reason = await conn.fetchval("SELECT reason FROM bans WHERE userID = $1 AND guildID = $2",
                                                  member.id, member.guild.id)
                 except TypeError:
@@ -88,11 +88,14 @@ class Events(commands.Cog):
                     reason += " `Message not sent to user`"
 
                 if logs:
-                    await self.bot.discord_logger.softban_join(member, self.bot.get_user(issuer_id) if self.bot.get_user(
-                        issuer_id) is not None else await self.bot.fetch_user(issuer_id), reason)
+                    await self.bot.discord_logger.softban_join(member,
+                                                               self.bot.get_user(issuer_id) if self.bot.get_user(
+                                                                   issuer_id) is not None else await self.bot.fetch_user(
+                                                                   issuer_id), reason)
 
                 try:
-                    await member.kick(reason="softban" + f", the reason is: {reason}" if reason is not None else "No reason")
+                    await member.kick(
+                        reason="softban" + f", the reason is: {reason}" if reason is not None else "No reason")
                     return
                 except discord.Forbidden:
                     console_logger.warning(f"Unable to kick user in softban join on {member.guild.name}, check perms")
@@ -105,13 +108,15 @@ class Events(commands.Cog):
                 muted = None
             if muted is not None:
                 try:
-                    guild_mute_role_id = await conn.fetchval("SELECT mutedrole FROM roles WHERE guildID = $1", member.guild.id)
+                    guild_mute_role_id = await conn.fetchval("SELECT mutedrole FROM roles WHERE guildID = $1",
+                                                             member.guild.id)
                 except TypeError:
                     return  # this only is called if None is gotten from the above query
 
                 await member.add_roles(member.guild.get_role(guild_mute_role_id))
 
-            if await conn.fetchval("SELECT enableJoinLeaveLogs FROM guild_settings WHERE guildID = $1", member.guild.id) and logs:
+            if await conn.fetchval("SELECT enableJoinLeaveLogs FROM guild_settings WHERE guildID = $1",
+                                   member.guild.id) and logs:
                 await self.bot.discord_logger.join_leave_logs("join", member)
 
     @commands.Cog.listener()
@@ -135,7 +140,8 @@ class Events(commands.Cog):
         if after.author.bot:
             return
 
-        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1", after.guild.id):
+        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1",
+                                      after.guild.id):
             await self.bot.discord_logger.message_edit_logs("msgedit", before, after)
 
     @commands.Cog.listener()
@@ -143,7 +149,12 @@ class Events(commands.Cog):
         if not await self.bot.is_log_registered(message.guild, "messagelogs"):
             return
 
-        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1", message.guild.id):
+        if self.bot.is_in_menu:
+            self.bot.is_in_menu = False
+            return
+
+        if await self.bot.db.fetchval("SELECT enableCoreMessageLogs FROM guild_settings WHERE guildID = $1",
+                                      message.guild.id):
             await self.bot.discord_logger.message_deletion("mdelete", message)
 
     @commands.Cog.listener()
@@ -175,7 +186,8 @@ class Events(commands.Cog):
                 return
 
         if await self.bot.db.fetchval("SELECT approvalSystem FROM guild_settings WHERE guildid = $1", channel.guild.id):
-            approval_role = channel.guild.get_role(await self.bot.db.fetchval("SELECT approvedrole FROM roles WHERE guildid = $1", channel.guild.id))
+            approval_role = channel.guild.get_role(
+                await self.bot.db.fetchval("SELECT approvedrole FROM roles WHERE guildid = $1", channel.guild.id))
             if not approval_role:
                 return
 
@@ -208,7 +220,8 @@ class Events(commands.Cog):
         """Fully removes a guild and its data (Bot owner only)"""
         guild = await self.bot.fetch_guild(guild_id)
         async with self.bot.db.acquire() as conn:
-            schema_list = await conn.fetch("SELECT table_name FROM information_schema.columns WHERE column_name = 'guildid'")
+            schema_list = await conn.fetch(
+                "SELECT table_name FROM information_schema.columns WHERE column_name = 'guildid'")
             for table in schema_list:
                 try:
                     await conn.execute(f"DELETE FROM {table[0]} WHERE guildid = $1", guild.id)
