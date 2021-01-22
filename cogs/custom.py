@@ -20,8 +20,10 @@ class CustomCommands(commands.Cog):
 
     async def get_custom_commands(self):
         """Puts all existing custom commands into the bot"""
-        custom_commands = await self.bot.db.fetch("SELECT DISTINCT name, description, aliases FROM custom_commands")
+        custom_commands = await self.bot.db.fetch(
+            "SELECT DISTINCT name, description, aliases, tags, id FROM custom_commands")
         for command in custom_commands:
+
             desc = command['description']
             aliases = command['aliases']
             if not aliases:
@@ -29,7 +31,17 @@ class CustomCommands(commands.Cog):
 
             if not desc:
                 desc = "A cool custom command!"
-            await self.add_custom_command(command['name'], desc, aliases)
+
+            if command.get("tags") and "SUBCOMMANDHEAD" in command.get("tags"):
+                subcmd_head = await self.make_subcommand_head(command['name'], desc, aliases)
+                if not command.get("sub_commands"):
+                    return
+
+                subcmds = await self.bot.db.fetch("SELECT * FROM custom_commands WHERE head_id = $1", command['id'])
+                for subcmd in subcmds:
+                    await self.make_subcommand(subcmd_head, subcmd["name"], subcmd)
+            else:
+                await self.add_custom_command(command['name'], desc, aliases)
 
     async def add_custom_command(self, name, description, aliases=None):
         """adds a custom command to the bot"""
@@ -65,10 +77,11 @@ class CustomCommands(commands.Cog):
 
         cmd_head.cog = self
         self.bot.add_command(cmd_head)
+        return cmd_head
 
-    async def make_subcommand(self, cmd_head: typing.Union[str, commands.group], name, sub_cmd_data: dict,
-                              aliases=None):
+    async def make_subcommand(self, cmd_head: typing.Union[str, commands.group], name, sub_cmd_data: dict):
         """Makes a subcommand"""
+        aliases = sub_cmd_data.get("aliases")
         if not aliases:
             aliases = []
         if isinstance(cmd_head, str):
@@ -89,56 +102,6 @@ class CustomCommands(commands.Cog):
             await ctx.send(content=msg_content, embed=emb)
 
         sub_cmd.cog = self
-        cmd_head.add_command(sub_cmd)
-
-    @commands.group(name="subcommands", invoke_without_command=True)
-    async def subcommands(self, ctx):
-        await ctx.send_help(ctx.command)
-
-    @subcommands.command(name="make")
-    async def make(self, ctx, name, description="A cool sub command head!"):
-
-        if await self.bot.db.fetchval("SELECT name FROM custom_commands WHERE name = $1", name) or self.bot.get_command(
-                name):
-            return await ctx.send("Command already exists")
-
-        await self.make_subcommand_head(name, description)
-        entry_id = await self.bot.db.fetchval(
-            "INSERT INTO custom_commands (name, guild_id, description) VALUES ($1, $2, $3) RETURNING id", name,
-            ctx.guild.id, description)
-
-        await self.bot.db.execute(
-            "UPDATE custom_commands SET tags = array_append(tags, 'SUBCOMMANDHEAD') WHERE id = $1", entry_id)
-        await ctx.send("Added sub command head, use subcommand append to add some subcommands to the head.")
-
-    @subcommands.command(name="append", aliases=['add'])
-    async def append_subcommand(self, ctx, subcmd_head_name, name):
-        """Creates a subcommand"""
-        name = name.lower()
-        cmd_head_dict = await self.bot.db.fetchrow(
-            "SELECT name, sub_commands, id FROM custom_commands WHERE name = $1 AND guild_id = $2 AND 'SUBCOMMANDHEAD' =  ANY(tags)",
-            subcmd_head_name, ctx.guild.id)
-
-        if not cmd_head_dict:
-            return await ctx.send("Command head name given either does ot exist or is not a sub command head")
-
-        current_subcmds = cmd_head_dict.get('sub_commands')
-        if current_subcmds is None:
-            pass
-        elif current_subcmds.get(name):
-            return await ctx.send("You already have a sub command by this name!")
-
-        wizard = await CustomCommandWizard(CustomEmbedMenu()).make_command(ctx)
-        if not wizard.get("content") and not wizard.get("embed"):
-            return await ctx.send("Cannot make a blank command")
-
-        await self.bot.db.execute(
-            "UPDATE custom_commands SET sub_commands = sub_commands::jsonb || jsonb_build_object($1::TEXT, $2::jsonb) WHERE id = $3",
-            name, wizard, cmd_head_dict.get('id'))
-
-        await self.make_subcommand(subcmd_head_name, name, wizard)
-
-
 
     @commands.group(name="customcommands", invoke_without_command=True)
     async def custom_commands(self, ctx):
@@ -149,42 +112,82 @@ class CustomCommands(commands.Cog):
     async def add(self, ctx, name):
         """Adds a new custom command or updates an existing custom command"""
         # First check if there's a custom command with that name already
+        name = name.lower()
         embed_maker = CustomEmbedMenu()
         wizard = await CustomCommandWizard(embed_maker).make_command(ctx)
-        print(f"`{wizard}`")
-        if not wizard.get("content") and not wizard.get("embed"):
-            return await ctx.send("Cannot make a blank command")
-
-        existing_command = await self.bot.db.fetchval(
-            "SELECT name FROM custom_commands WHERE name = $1", name)
+        existing_command = await self.bot.db.fetchval("SELECT name FROM custom_commands WHERE name = $1", name)
         # Check if there's a built in command, we don't want to override that
         if existing_command is None and ctx.bot.get_command(name):
             return await ctx.send(f"A built in command with the name {name} is already registered")
 
-        # Now, if the command already exists then we just need to add/override the message for this guild
-        if existing_command:
-            if not await self.bot.db.fetchval("SELECT name FROM custom_commands WHERE name = $1 AND guild_id = $2",
-                                              name, ctx.guild.id):
-                await self.bot.db.execute(
-                    "INSERT INTO custom_commands (name, guild_id, output, embed_dicts, description) VALUES ($1, $2, $3, $4, $5)",
-                    name, ctx.guild.id, wizard.get("content"), wizard.get("embed"), wizard.get("description"))
+        tags = await self.bot.db.fetchval("SELECT tags FROM custom_commands WHERE name = $1 AND  guild_id = $2", name,
+                                          ctx.guild.id)
+        subhead = None
+        if not tags or "SUBCOMMANDHEAD" in tags:
+            subhead, msg = await paginator.YesNoMenu("Would you like to make this a sub command head?").prompt(ctx)
+            if subhead:
+                wizard['tags'] = ["SUBCOMMANDHEAD"]
+                await msg.edit(content="This is now a subcommand head")
 
-                return await ctx.send(f"Added a command called {name}")
+        if not subhead and not wizard.get("content") and not wizard.get("embed"):
+            return await ctx.send("Cannot make a blank command")
 
-            else:
-                await self.bot.db.execute(
-                    "UPDATE custom_commands SET output = $1, embed_dicts = $2, description = $3 WHERE guild_id = $4",
-                    wizard.get("content"), wizard.get("embed"), wizard.get("description"), ctx.guild.id)
-                return await ctx.send(f"Updated {name}")
-        # Otherwise, we need to create the command object
-        else:
-            await self.add_custom_command(name, wizard.get("description"))
-            # Now add it to our list of custom commands
+        if not await self.bot.db.fetchval("SELECT name FROM custom_commands WHERE name = $1 AND guild_id = $2", name,
+                                          ctx.guild.id):
             await self.bot.db.execute(
-                "INSERT INTO custom_commands (name, guild_id, output, embed_dicts, description) VALUES ($1, $2, $3, $4, $5)",
-                name,
-                ctx.guild.id, wizard.get("content"), wizard.get("embed"), wizard.get("description"))
-        await ctx.send(f"Added a command called {name}")
+                "INSERT INTO custom_commands (name, guild_id, output, embed_dicts, description, tags) VALUES ($1, $2, $3, $4, $5, $6)",
+                name, ctx.guild.id, wizard.get("content"), wizard.get("embed"), wizard.get("description"),
+                wizard.get("tags"))
+            await ctx.send(f"Added a command called {name}")
+
+        else:
+            await self.bot.db.execute(
+                "UPDATE custom_commands SET output = $1, embed_dicts = $2 , description = $3, tags = array_append(tags, $4) WHERE guild_id = $5 AND name = $6",
+                wizard.get("content"), wizard.get("embed"), wizard.get("description"), wizard.get("tags"), ctx.guild.id,
+                name)
+            self.bot.reload_extension(__name__)
+            await ctx.send(f"Updated {name}")
+
+        if not existing_command:
+            if not subhead:
+                await self.add_custom_command(name, wizard.get("description"))
+            else:
+                print("Add subcommand head to bot")
+
+    @custom_commands.command(name="appendsubcommand", aliases=['addsub', 'addsubcommand'])
+    async def append_subcmd(self, ctx, head_name, name):
+        """Adds a subcommand to an existing subcommand head"""
+        head_dict = await self.bot.db.fetchrow(
+            "SELECT * FROM custom_commands WHERE name = $1 AND guild_id = $2 AND 'SUBCOMMANDHEAD' = ANY(tags)",
+            head_name, ctx.guild.id)
+        if not head_dict:
+            return await ctx.send("Following command either doesn't exist or is not a subcommand head!")
+
+        name = name.lower()
+        embed_maker = CustomEmbedMenu()
+        wizard = await CustomCommandWizard(embed_maker).make_command(ctx)
+        existing_command = await self.bot.db.fetchval("SELECT name FROM custom_commands WHERE name = $1", name)
+        # Check if there's a built in command, we don't want to override that
+        if existing_command is None and ctx.bot.get_command(name):
+            return await ctx.send(f"A built in command with the name {name} is already registered")
+
+        if not wizard.get("content") and not wizard.get("embed"):
+            return await ctx.send("Cannot make a blank command")
+
+        if not await self.bot.db.fetchval("SELECT name FROM custom_commands WHERE name = $1 AND guild_id = $2 AND head_id = $3", name, ctx.guild.id, head_dict['id']):
+            await self.bot.db.execute(
+                "INSERT INTO custom_commands (name, guild_id, output, embed_dicts, description, tags, head_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                name, ctx.guild.id, wizard.get("content"), wizard.get("embed"), wizard.get("description"),
+                ['SUBCOMMAND'], head_dict['id'])
+            await ctx.send(f"Added a subcommand to {head_name} called {name}")
+
+        else:
+            await self.bot.db.execute(
+                "UPDATE custom_commands SET output = $1, embed_dicts = $2 , description = $3, tags = array_append(tags, $4) WHERE guild_id = $5 AND name = $6 AND head_id = $7",
+                wizard.get("content"), wizard.get("embed"), wizard.get("description"), ['SUBCOMMAND'], ctx.guild.id,
+                name, head_dict['id'])
+            self.bot.reload_extension(__name__)
+            await ctx.send(f"Updated {name}")
 
     @custom_commands.command(name="remove", aliases=['del'])
     async def remove(self, ctx, name):
@@ -217,31 +220,69 @@ class CustomCommands(commands.Cog):
 
         await ctx.send(embed=info_emb)
 
-    @custom_commands.group(name="aliases", invoke_without_command=True)
+    @commands.group(name="aliases", invoke_without_command=True)
     async def aliases(self, ctx):
         """Alias management commands"""
         await ctx.send_help(ctx.command)
 
+    async def verify_command_exists(self, ctx, cmd_name):
+        """check for thing"""
+        print("aliases: this is running before a command")
+        cmd_dict = await self.bot.db.fetchrow(
+            "SELECT id, aliases FROM custom_commands WHERE name = $1 AND guild_id = $2", cmd_name, ctx.guild.id)
+        if cmd_dict is None:
+            subcmds = await self.bot.db.fetch(
+                "SELECT jsonb_object_keys(sub_commands) AS name, id FROM custom_commands WHERE guild_id = $1",
+                ctx.guild.id)
+            for s in subcmds:
+                if cmd_name == s['name']:
+                    cmd_dict = await self.bot.db.fetchrow(
+                        "SELECT sub_commands->'aliases' AS aliases, id FROM custom_commands WHERE id = $1", s['id'])
+
+            is_subcmd = True
+
+        else:
+            is_subcmd = False
+
+        return cmd_dict, is_subcmd
+
     @aliases.command(name="add")
     async def add_alias(self, ctx, cmd_name, alias):
         """Adds an alias to a command"""
-        cmd_dict = await self.bot.db.fetchrow(
-            "SELECT id, name, aliases FROM custom_commands WHERE name = $1 AND guild_id = $2", cmd_name, ctx.guild.id)
-        if not cmd_dict:
+        output = await self.verify_command_exists(ctx, cmd_name)
+        if not output[0]:
             return await ctx.send(f"No custom command called `{cmd_name}` on this server!")
 
-        if not cmd_dict['aliases'] or alias not in cmd_dict['aliases'] and not self.bot.get_command(alias):
-            await self.bot.db.execute("UPDATE custom_commands SET aliases = array_append(aliases, $1) WHERE id = $2",
-                                      alias, cmd_dict['id'])
+        if not output[1]:
+            cmd_dict = output[0]
+            if not cmd_dict['aliases'] or alias not in cmd_dict['aliases'] and not self.bot.get_command(alias):
+                await self.bot.db.execute(
+                    "UPDATE custom_commands SET aliases = array_append(aliases, $1) WHERE id = $2",
+                    alias, cmd_dict['id'])
+            else:
+                return await ctx.send(
+                    f"Alias already saved to `{cmd_name}` or bot already has a base command by this alias.")
+
+        else:
+            cmd_dict = dict(output[0])
+            if not cmd_dict.get("aliases"):
+                cmd_dict['aliases'] = []
+            if alias not in cmd_dict['aliases'] and not self.bot.get_command(alias):
+                cmd_dict['aliases'].append(alias)
+                await self.bot.db.execute("UPDATE custom_commands SET sub_commands->'aliases' = $1 WHERE id = $2",
+                                          cmd_dict['aliases'],
+                                          cmd_dict['id'])
+            else:
+                return await ctx.send(
+                    f"Alias already saved to `{cmd_name}` or bot already has a base command by this alias.")
+
             await ctx.send("Alias saved!")
             self.bot.reload_extension(__name__)
-        else:
-            return await ctx.send(
-                f"Alias already saved to `{cmd_name}` or bot already has a base command by this alias.")
 
     @aliases.command(name="remove", aliases=['del'])
     async def remove_alias(self, ctx, cmd_name, alias):
         """Removes an alias from a custom command"""
+        await verify_command_exists(ctx)
         cmd_dict = await self.bot.db.fetchrow(
             "SELECT id, name, aliases FROM custom_commands WHERE name = $1 AND guild_id = $2", cmd_name, ctx.guild.id)
         if not cmd_dict:
