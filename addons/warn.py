@@ -1,11 +1,12 @@
 import json
+from datetime import datetime, timedelta
 
 from discord.ext import commands
 import discord
 from discord.errors import Forbidden
 import typing
 
-from utils import checks, common, errors
+from utils import checks, common, errors, paginator
 
 
 class DbWarn:
@@ -90,11 +91,10 @@ class Warn(commands.Cog):
     @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @warn_punishments.command()
-    async def set(self, ctx, warn_number: int, warn_punishment: str):
+    async def set(self, ctx, warn_number: int, warn_punishment: str, mute_time=None):
         """Set punishments for warns. Valid options are `kick`, `ban`, and `mute` max number of warns allowed is 100"""
         if warn_number > 100:
             return await ctx.send("You cannot have over 100 warns")
-        print("Passed first check")
         if warn_punishment.lower() not in ('kick', 'ban', 'mute'):
             return await ctx.send("Invalid punishment given, valid punishments are `kick`, `ban`, and `mute`.")
         async with self.bot.db.acquire() as conn:
@@ -107,13 +107,22 @@ class Warn(commands.Cog):
                 "UPDATE guild_settings SET warn_punishments = warn_punishments::jsonb || jsonb_build_object($1::INT, $2::TEXT) WHERE guildid = $3",
                 warn_number, warn_punishment, ctx.guild.id)
 
-            if warn_punishment.lower() == 'mute' and await conn.fetchval(
-                    "SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id) is None:
-                cog = self.bot.get_cog('Setup')
-                if not cog:
-                    return await ctx.send(
-                        "Setup cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
-                await cog.muted_role_setup(ctx)
+            if warn_punishment.lower() == 'mute':
+                if await conn.fetchval("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id) is None:
+                    cog = self.bot.get_cog('Setup')
+                    print("Mute found")
+                    if not cog:
+                        return await ctx.send(
+                            "Setup cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
+                    await cog.muted_role_setup(ctx)
+
+                if not mute_time:
+                    mute_time = "24h"
+                res = common.parse_time(mute_time)
+                if res == -1:
+                    return await ctx.send("Invalid time format")
+                await conn.execute("UPDATE guild_settings SET warn_automute_time = $1 WHERE guildid = $2", res,
+                                   ctx.guild.id)
 
         await ctx.send(f"Ok, I will now {warn_punishment} when a user gets {warn_number} warn(s).")
         try:
@@ -139,7 +148,6 @@ class Warn(commands.Cog):
     # handle warn punishments
     async def punish(self, ctx, member, warn_number, action):
         """Punishes a user for a warn"""
-
         if action.lower() == "ban":
             try:
                 await member.send(f"You have been banned from {ctx.guild.name}")
@@ -164,35 +172,24 @@ class Warn(commands.Cog):
                 return await ctx.send("Unable to kick member, check my permissions!")
 
         elif action.lower() == "mute":
-            async with self.bot.db.acquire() as conn:
-                muted_role_id = await conn.fetchval("SELECT mutedRole FROM roles WHERE guildID = $1", ctx.guild.id)
-                if muted_role_id is None:
-                    return await ctx.send("No muted role found, please run the setup wizard for the muted role again")
-                muted_role = ctx.guild.get_role(muted_role_id)
-                if muted_role is None:
-                    await conn.execute("UPDATE roles SET mutedrole = NULL WHERE guildid = $1", ctx.guild.id)
-                    cog = self.bot.get_cog('Setup')
-                    if not cog:
-                        return await ctx.send(
-                            "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
-                    await cog.muted_role_setup(ctx)
+            cog = self.bot.get_cog("Mod")
+            if not cog:
+                return await ctx.send("Mod cog is not loaded, please load that cog to have auto-muting working")
+            time_seconds = await self.bot.db.fetchval(
+                "SELECT warn_automute_time FROM guild_settings WHERE guildid = $1", ctx.guild.id)
+            reason = f"Got {warn_number} warns."
+            res = await cog.mute_prep(ctx, member, 'timed')
+            if res == -1:
+                return
+            elif res == 1:
+                m_id = await self.bot.db.fetchval("SELECT id FROM mutes WHERE userid = $1 AND guildid = $2", member.id,
+                                                  ctx.guild.id)
+            else:
+                m_id = await self.bot.db.fetchval(
+                    "INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4) RETURNING id",
+                    member.id, ctx.author.id, ctx.guild.id, reason)
 
-                try:
-                    if not muted_role in member.roles or not await conn.fetchval(
-                            "SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
-                            ctx.guild.id) == member.id:
-                        await member.add_roles(muted_role)
-                except TypeError or discord.Forbidden:
-                    return await ctx.send("Unable to mute member")
-
-                await conn.execute("INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4)",
-                                   member.id, ctx.author.id, ctx.guild.id,
-                                   f"Auto-mute for getting {warn_number} warn(s).")
-
-                try:
-                    await member.send(f"You have been muted in {ctx.guild.name}")
-                except discord.Forbidden:
-                    pass
+            await self.bot.scheduler.add_timed_job('mute', datetime.utcnow(), timedelta(seconds=time_seconds), action_id=m_id)
 
         else:
             # this should never trigger!
@@ -249,7 +246,7 @@ class Warn(commands.Cog):
             await member.send(msg)
         except Forbidden:
             pass
-        
+
         if punishment_data:
             if str(warn_num) in list(punishment_data.keys()):
                 await self.punish(ctx, member, warn_num, punishment_data[str(warn_num)])
@@ -260,8 +257,8 @@ class Warn(commands.Cog):
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
-    @commands.command(aliases=["delwarn", 'unwarn'])
-    async def deletewarn(self, ctx, member: discord.Member, warn_num: int):
+    @commands.command(name="deletewarn", aliases=["delwarn", 'unwarn'])
+    async def delete_warn(self, ctx, member: discord.Member, warn_num: int):
 
         """Removes a single warn (Staff only)"""
         async with self.bot.db.acquire() as conn:
@@ -292,8 +289,8 @@ class Warn(commands.Cog):
             await self.bot.discord_logger.warn_clear('clear', member, ctx.author, deleted_warn)
 
     @commands.guild_only()
-    @commands.command()
-    async def listwarns(self, ctx, member: typing.Union[discord.Member, int] = None):
+    @commands.command(name='listwarns')
+    async def list_warns(self, ctx, member: typing.Union[discord.Member, int] = None):
         """
         List your own warns or someone else's warns.
         Only the staff can view someone else's warns
@@ -342,8 +339,8 @@ class Warn(commands.Cog):
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
-    @commands.command()
-    async def clearwarns(self, ctx, member: typing.Union[discord.Member, int]):
+    @commands.command(name="clearwarns")
+    async def clear_warns(self, ctx, member: typing.Union[discord.Member, int]):
         """Clear's all warns from a user"""
 
         if isinstance(member, int):
