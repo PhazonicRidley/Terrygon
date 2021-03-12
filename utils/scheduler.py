@@ -88,16 +88,24 @@ class Scheduler:
         user = guild.get_member(mute_record['userid'])
 
         if None in (guild, author, user):
-            raise  # make custom exception later
+            print(f"Cannot process a timed unmute with id {mute_id} cannot find either the guild, author, or user. guild: {guild}, author: {author}, user {user}")
+            return
         muted_role = guild.get_role(
             await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
         if muted_role is None:
-            raise  # make custom exception later
+            try:
+                await guild.owner.send("Unable to unmute a timed mute, muted role is not set.")
+            except discord.Forbidden:
+                pass
+            return
         try:
             await user.remove_roles(muted_role, reason="Time mute expired")
             await self.bot.db.execute("DELETE FROM mutes WHERE userID = $1 AND guildID = $2", user.id, guild.id)
         except discord.Forbidden:
-            raise  # custom exception later
+            try:
+                await guild.owner.send(f"Cannot unmute on {guild.name} a timed mute because I cannot manage roles")
+            except discord.Forbidden:
+                pass
 
         try:
             await user.send(f"You have been unmuted in {guild.name}")
@@ -120,13 +128,14 @@ class Scheduler:
         user = await self.bot.fetch_user(ban_record['userid'])
 
         if None in (guild, author, user):
-            raise  # make custom exception later
+            print(f"Time unban with ban_id {ban_id} could not be processed because either the guild, author, or banned user was not found in the database! guild: {guild}, author: {author}, user: {user}")
+            return
 
         try:
             await guild.unban(user, reason="Timeban expired")
             await self.bot.db.execute("DELETE FROM bans WHERE userid = $1 AND guildid = $2", user.id, guild.id)
         except discord.Forbidden:
-            raise  # custom exception later
+            pass
 
         try:
             await self.bot.discord_logger.expiration_mod_logs('ban', guild, author, user)
