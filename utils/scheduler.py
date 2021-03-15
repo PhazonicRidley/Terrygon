@@ -1,9 +1,14 @@
+import os
+
 import discord
 from discord.ext import commands
 import asyncio
 import time
 from datetime import datetime, timedelta
 from utils import errors
+from logzero import setup_logger
+
+console_logger = setup_logger(name="schedule_logs", logfile="logs/scheduler.log", maxBytes=100000)
 
 
 class TimedJob:
@@ -26,6 +31,9 @@ class Scheduler:
             # 'block': self.time_unblock,
             'reminder': self.remind
         }
+
+        if not os.path.exists("logs.log"):
+            open("logs/scheduler.log", "w").write("")
 
     async def add_timed_job(self, type: str, creation: datetime, expiration: timedelta, **kwargs):
         """Function to add a timed job to the database"""
@@ -88,8 +96,11 @@ class Scheduler:
         user = guild.get_member(mute_record['userid'])
 
         if None in (guild, author, user):
-            print(f"Cannot process a timed unmute with id {mute_id} cannot find either the guild, author, or user. guild: {guild}, author: {author}, user {user}")
+            err = f"Cannot process a timed unmute with id {mute_id} cannot find either the guild, author, or user. guild: {guild}, author: {author}, user {user}"
+            print(err)
+            console_logger.info(err)
             return
+
         muted_role = guild.get_role(
             await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
         if muted_role is None:
@@ -128,7 +139,9 @@ class Scheduler:
         user = await self.bot.fetch_user(ban_record['userid'])
 
         if None in (guild, author, user):
-            print(f"Time unban with ban_id {ban_id} could not be processed because either the guild, author, or banned user was not found in the database! guild: {guild}, author: {author}, user: {user}")
+            s = f"Time unban with ban_id {ban_id} could not be processed because either the guild, author, or banned user was not found in the database! guild: {guild}, author: {author}, user: {user}"
+            print(s)
+            console_logger.info(s)
             return
 
         try:
