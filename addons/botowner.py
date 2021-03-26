@@ -227,7 +227,7 @@ class BotOwner(commands.Cog):
                     return await ctx.send("Nothing found in database!")
                 try:
                     table = tabulate(res, res[0].keys(), tablefmt='psql')
-                except IndexError:
+                except Exception:
                     table = res
                 if len(res) > 1800:
                     await ctx.send("Output is too big!")
