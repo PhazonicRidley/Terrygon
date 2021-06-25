@@ -1,0 +1,24 @@
+version: "3.8"
+services:
+  db:
+    image: postgres:13
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: terrygon
+      POSTGRES_PASSWORD: spacecore
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U terrygon"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  terrygon:
+    build: utils
+    container_name: terrygon
+    volumes:
+      - ./logs:/logs
+    depends_on:
+      db:
+        condition: service_healthy
+
+    restart: always
