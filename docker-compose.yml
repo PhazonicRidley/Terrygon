@@ -5,7 +5,7 @@ services:
     container_name: postgres_db
     environment:
       POSTGRES_USER: terrygon
-      POSTGRES_PASSWORD: spacecore
+      POSTGRES_PASSWORD: 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U terrygon"]
       interval: 10s
