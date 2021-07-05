@@ -357,7 +357,7 @@ class Block(commands.Cog):
         """Checks what channels you are blocked from, only staff may check other users"""
         if member is None:
             member = ctx.author
-        has_perms = await checks.nondeco_is_staff_or_perms(ctx, "Mod", manage_roles=True)
+        has_perms = await checks.nondeco_is_staff_or_perms(ctx, self.bot.db, "Mod", manage_roles=True)
         if not has_perms and member != ctx.author:
             return await ctx.send("You cannot check other people's restrictions!")
 

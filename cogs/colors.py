@@ -207,7 +207,7 @@ class Colors(commands.Cog):
         if member is None or member == ctx.author:
             member = ctx.author
         else:
-            if not await checks.nondeco_is_staff_or_perms(ctx, 'Mod', manage_roles=True) and member != ctx.author:
+            if not await checks.nondeco_is_staff_or_perms(ctx, self.bot.db, 'Mod', manage_roles=True) and member != ctx.author:
                 return await ctx.send("You cannot delete other people's color roles if you are not a mod")
 
         async with self.bot.db.acquire() as conn:

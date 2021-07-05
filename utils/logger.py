@@ -393,7 +393,10 @@ class Logger:
         if log_type == "channelwhitelist":
             msg = f"{self.emotes[log_type]} **__Channel Whitelist:__** {author.mention} ({author} | {author.id}) whitelisted {channel.mention}\nID: {channel.id}"
         elif log_type == "channeldewhitelist":
-            msg = f"{self.emotes[log_type]} **__Channel Dewhitelist:__** {author.mention} ({author} | {author.id}) dewhitelisted {channel.mention}\nID: {channel.id}"
+            if isinstance(channel, discord.TextChannel):
+                msg = f"{self.emotes[log_type]} **__Channel Dewhitelist:__** {author.mention} ({author} | {author.id}) dewhitelisted {channel.mention}\nID: {channel.id}"
+            else:
+                msg = f"{self.emotes[log_type]} **__Channel Dewhitelist:__** {author.mention} ({author} | {author.id}) removed a deleted channel\nID: {channel.id}"
         else:
             return
 

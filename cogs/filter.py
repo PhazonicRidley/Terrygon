@@ -1,4 +1,5 @@
 import re
+import typing
 
 import discord
 from discord.ext import commands
@@ -114,8 +115,12 @@ class Filter(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """Checks messages"""
-        if self.bot.user == message.author:
+        is_staff = await checks.nondeco_is_staff_or_perms(message, self.bot.db, "Mod", manage_message=True)
+        is_whitelist = await self.bot.db.fetchval("SELECT channel_id FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2", message.channel.id, message.guild.id)
+        is_me = self.bot.user == message.author
+        if is_me or is_staff or is_whitelist:
             return
+
         filtered_words = await self.bot.db.fetch("SELECT word, punishment FROM filtered_words WHERE guild_id = $1",
                                                  message.guild.id)
         if filtered_words is None:
@@ -151,14 +156,80 @@ class Filter(commands.Cog):
         await self.bot.discord_logger.filter_pop(message.author, highlighted_message, highest_punishment)
 
     # whitelisted channels funcs (add/remove)
-    # filter function (TESTING WITH REGEX TO START)
-    # - staff is always whitelisted
-    # - ignore whitelisted channels
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_channels=True)
+    @commands.group(name="channelwhitelist", invoke_without_command=True, aliases=['whitelist'])
+    async def channel_whitelist(self, ctx):
+        """Channel whitelist for filter"""
+        await ctx.send_help(ctx.command)
 
-    # punishments on filter breaks
-    # - warns
-    # - deletes
-    # - notifications
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_channels=True)
+    @channel_whitelist.command(name="add")
+    async def whitelist_add(self, ctx, channel: discord.TextChannel = None):
+        """Adds a text channel to the whitelist"""
+        if channel is None:
+            channel = ctx.channel
+
+        if await self.bot.db.fetchval(
+                "SELECT channel_id FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2", channel.id,
+                ctx.guild.id) is not None:
+            return await ctx.send(f"{channel.mention} is already whitelisted")
+
+        await self.bot.db.execute("INSERT INTO whitelisted_channels (channel_id, guild_id) VALUES ($1, $2)", channel.id,
+                                  ctx.guild.id)
+        await ctx.send(f"{channel.mention} is now whitelisted")
+        await self.bot.discord_logger.channel_whitelist("channelwhitelist", channel, ctx.author)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_channels=True)
+    @channel_whitelist.command(name="delete", aliases=['remove', 'del'])
+    async def whitelist_remove(self, ctx, channel: typing.Union[discord.TextChannel, int] = None):
+        """Removes a channel from the whitelist"""
+        if channel is None:
+            channel = ctx.channel
+        if isinstance(channel, int):
+            channel_id = channel
+            output = f"{channel_id} is not being whitelisted."
+        else:
+            channel_id = channel.id
+            output = f"{channel.mention} is not being whitelisted."
+        if not await self.bot.db.fetchval(
+                "SELECT channel_id FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2", channel_id,
+                ctx.guild.id):
+            return await ctx.send(f"{channel.mention} is not whitelisted.")
+
+        await self.bot.db.execute("DELETE FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2",
+                                  channel_id, ctx.guild.id)
+        await ctx.send(output)
+        await self.bot.discord_logger.channel_whitelist("channeldewhitelist", channel, ctx.author)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_channels=True)
+    @channel_whitelist.command(name="list")
+    async def whitelist_list(self, ctx):
+        """Lists whitelisted channels"""
+        channels = ""
+        deleted_channels = ""
+        c_ids = await self.bot.db.fetchrow("SELECT channel_id FROM whitelisted_channels WHERE guild_id = $1", ctx.guild.id)
+        for c_id in c_ids:
+            c = ctx.guild.get_channel(c_id)
+            if not c:
+                deleted_channels += f"- {c_id}\n"
+            else:
+                channels += f"- {c.mention}"
+
+        embed = discord.Embed(title=f"List of whitelisted channels")
+        embed.description = channels
+        if deleted_channels:
+            embed.add_field(name=":warning: Deleted channels, please remove with the delete command!",
+                            value=deleted_channels)
+
+        try:
+            await ctx.author.send(embed=embed)
+            await ctx.message.add_reaction("\U0001f4ec")
+        except discord.Forbidden:
+            pass
 
 
 def setup(bot):

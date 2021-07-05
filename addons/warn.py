@@ -303,7 +303,7 @@ class Warn(commands.Cog):
             member = await self.bot.fetch_user(member)
             in_server = False
 
-        has_perms = await checks.nondeco_is_staff_or_perms(ctx, "Mod", manage_roles=True)
+        has_perms = await checks.nondeco_is_staff_or_perms(ctx, self.bot.db, "Mod", manage_roles=True)
 
         if not has_perms and member != ctx.message.author:
             return await ctx.send("You don't have permission to list other member's warns!")

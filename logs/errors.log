@@ -1,0 +1,94 @@
+[I 210704 18:57:00 main:165] COMMAND: add, GUILD: bot test CHANNEL: community-resources
+[E 210704 18:57:00 main:170] Exception occurred in `wordfilter add` in <#656294266867548163>Traceback (most recent call last):
+      File "C:\Python39\lib\site-packages\discord\ext\commands\bot.py", line 939, in invoke
+        await ctx.command.invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 1348, in invoke
+        await ctx.invoked_subcommand.invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 863, in invoke
+        await injected(*ctx.args, **ctx.kwargs)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 85, in wrapped
+        ret = await coro(*args, **kwargs)
+      File "D:\Phazonic\Documents\Programming\Python\terrygon\cogs\filter.py", line 44, in add_word
+        await self.bot.discord_logger.word_filter_update("wordadd", word, ctx.author, punishment)
+      File "D:\Phazonic\Documents\Programming\Python\terrygon\utils\logger.py", line 383, in word_filter_update
+        await self.dispatch('messagelogs', author.guild, log_type, msg)
+      File "D:\Phazonic\Documents\Programming\Python\terrygon\utils\logger.py", line 89, in dispatch
+        raise errors.loggingError(log_type, guild)
+    utils.errors.loggingError: Failed to log wordadd in bot test check configurations!
+    NoneType: None
+[I 210704 19:40:23 main:165] COMMAND: wordfilter, GUILD: bot test CHANNEL: community-resources
+[E 210704 19:40:23 main:170] Exception occurred in `wordfilter` in <#656294266867548163>Traceback (most recent call last):
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 85, in wrapped
+        ret = await coro(*args, **kwargs)
+      File "D:\Phazonic\Documents\Programming\Python\terrygon\cogs\filter.py", line 22, in word_filter
+        self.bot.send_help(ctx.command)
+    AttributeError: 'Terrygon' object has no attribute 'send_help'
+    
+    The above exception was the direct cause of the following exception:
+    
+    Traceback (most recent call last):
+      File "C:\Python39\lib\site-packages\discord\ext\commands\bot.py", line 939, in invoke
+        await ctx.command.invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 1353, in invoke
+        await super().invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 863, in invoke
+        await injected(*ctx.args, **ctx.kwargs)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 94, in wrapped
+        raise CommandInvokeError(exc) from exc
+    discord.ext.commands.errors.CommandInvokeError: Command raised an exception: AttributeError: 'Terrygon' object has no attribute 'send_help'
+    NoneType: None
+[I 210704 19:44:07 main:165] COMMAND: list, GUILD: bot test CHANNEL: community-resources
+[E 210704 19:44:07 main:170] Exception occurred in `wordfilter list` in <#656294266867548163>Traceback (most recent call last):
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 85, in wrapped
+        ret = await coro(*args, **kwargs)
+      File "D:\Phazonic\Documents\Programming\Python\terrygon\cogs\filter.py", line 89, in list_words
+        await self.bot.context.message.add_reaction("\U0001f4ec")
+    AttributeError: 'Terrygon' object has no attribute 'context'
+    
+    The above exception was the direct cause of the following exception:
+    
+    Traceback (most recent call last):
+      File "C:\Python39\lib\site-packages\discord\ext\commands\bot.py", line 939, in invoke
+        await ctx.command.invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 1348, in invoke
+        await ctx.invoked_subcommand.invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 863, in invoke
+        await injected(*ctx.args, **ctx.kwargs)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 94, in wrapped
+        raise CommandInvokeError(exc) from exc
+    discord.ext.commands.errors.CommandInvokeError: Command raised an exception: AttributeError: 'Terrygon' object has no attribute 'context'
+    NoneType: None
+[I 210705 11:31:43 main:165] COMMAND: channelset, GUILD: bot test CHANNEL: community-resources
+[E 210705 11:31:43 main:170] Exception occurred in `logchannel channelset` in <#656294266867548163>Traceback (most recent call last):
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 85, in wrapped
+        ret = await coro(*args, **kwargs)
+      File "D:\Phazonic\Documents\Programming\Python\terrygon\addons\setup.py", line 149, in channelset
+        if await self.set_unset_channels(ctx, channel, channel_type, 'set') == 0:
+      File "D:\Phazonic\Documents\Programming\Python\terrygon\addons\setup.py", line 101, in set_unset_channels
+        await conn.execute(f"UPDATE log_channels SET {channel_type} = $1 WHERE guildid = $2", channel.id,
+      File "C:\Python39\lib\site-packages\asyncpg\connection.py", line 274, in execute
+        _, status, _ = await self._execute(query, args, 0, timeout, True)
+      File "C:\Python39\lib\site-packages\asyncpg\connection.py", line 1402, in _execute
+        result, _ = await self.__execute(
+      File "C:\Python39\lib\site-packages\asyncpg\connection.py", line 1411, in __execute
+        return await self._do_execute(query, executor, timeout)
+      File "C:\Python39\lib\site-packages\asyncpg\connection.py", line 1423, in _do_execute
+        stmt = await self._get_statement(query, None)
+      File "C:\Python39\lib\site-packages\asyncpg\connection.py", line 328, in _get_statement
+        statement = await self._protocol.prepare(stmt_name, query, timeout)
+      File "asyncpg/protocol/protocol.pyx", line 163, in prepare
+    asyncpg.exceptions.UndefinedColumnError: column "filterlogs" of relation "log_channels" does not exist
+    
+    The above exception was the direct cause of the following exception:
+    
+    Traceback (most recent call last):
+      File "C:\Python39\lib\site-packages\discord\ext\commands\bot.py", line 939, in invoke
+        await ctx.command.invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 1348, in invoke
+        await ctx.invoked_subcommand.invoke(ctx)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 863, in invoke
+        await injected(*ctx.args, **ctx.kwargs)
+      File "C:\Python39\lib\site-packages\discord\ext\commands\core.py", line 94, in wrapped
+        raise CommandInvokeError(exc) from exc
+    discord.ext.commands.errors.CommandInvokeError: Command raised an exception: UndefinedColumnError: column "filterlogs" of relation "log_channels" does not exist
+    NoneType: None

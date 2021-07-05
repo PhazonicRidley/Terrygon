@@ -43,25 +43,26 @@ def is_staff_or_perms(min_staff_role: str, **perms):
     return commands.check(wrapper)
 
 
-async def nondeco_is_staff_or_perms(ctx, min_staff_role, **perms) -> bool:
-    if ctx.author == ctx.guild.owner:
-        return True
-
+async def nondeco_is_staff_or_perms(target, db, min_staff_role, **perms) -> bool:
     # get global perms for the user
-    permissions = ctx.author.guild_permissions
-    missing = []
-    if not perms:
-        missing = ['no perms given']
-    else:
-        missing = [perm for perm, value in perms.items() if getattr(permissions, perm, None) != value]
+    if isinstance(target.author, discord.Member):
+        permissions = target.author.guild_permissions
+        missing = []
+        if not perms:
+            missing = ['no perms given']
+        else:
+            missing = [perm for perm, value in perms.items() if getattr(permissions, perm, None) != value]
 
+    else:
+        missing = ['no perms given']
+        permissions = discord.Permissions(administrator=False)
     # check for staff
     check_roles = ['mod', 'admin', 'owner']
     for role in check_roles.copy():
         if check_roles.index(role) < check_roles.index(min_staff_role.lower()):
             check_roles.remove(role)
 
-    staff_roles = list(await ctx.bot.db.fetchrow("SELECT modRole, adminRole, ownerRole FROM roles WHERE guildID = $1", ctx.guild.id))
+    staff_roles = list(await db.fetchrow("SELECT modRole, adminRole, ownerRole FROM roles WHERE guildID = $1", target.guild.id))
 
     while len(check_roles) != len(staff_roles):
         try:
@@ -69,7 +70,12 @@ async def nondeco_is_staff_or_perms(ctx, min_staff_role, **perms) -> bool:
         except IndexError as e:
             raise commands.CommandInvokeError(e)
 
-    user_roles = [role.id for role in ctx.message.author.roles]
+    if isinstance(target, commands.Context):
+        user_roles = [role.id for role in target.message.author.roles]
+    elif isinstance(target, discord.Message):
+        user_roles = [role.id for role in target.author.roles]
+    else:
+        raise commands.BadArgument(message="Bad argument passed")
     if any(role in user_roles for role in staff_roles) or not missing or permissions.administrator:
         return True
     else:
@@ -78,9 +84,9 @@ async def nondeco_is_staff_or_perms(ctx, min_staff_role, **perms) -> bool:
 
 def is_trusted_or_perms(**perms):
     async def wrapper(ctx):
-        if await nondeco_is_staff_or_perms(ctx, 'Mod', **perms):
+        if await nondeco_is_staff_or_perms(ctx, ctx.bot.db, 'Mod', **perms):
             return True
-
+        
         async with ctx.bot.db.acquire() as conn:
             trusted_users = await conn.fetchval("SELECT trusteduid FROM trustedusers WHERE guildid = $1", ctx.guild.id)
             if trusted_users and ctx.author.id in trusted_users:
