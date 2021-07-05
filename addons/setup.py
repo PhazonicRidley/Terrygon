@@ -19,7 +19,7 @@ class Setup(commands.Cog):
             if asset in ('modrole', 'adminrole', 'ownerrole', 'approvedrole', 'mutedrole'):
                 return (await conn.fetchrow(f"SELECT {asset} FROM roles WHERE guildid = $1", guild.id))[0]
 
-            elif asset in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
+            elif asset in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs', 'filterlogs'):
                 return (await conn.fetchrow(f"SELECT {asset} FROM log_channels WHERE guildid = $1", guild.id))[0]
 
             else:
@@ -73,7 +73,7 @@ class Setup(commands.Cog):
             await ctx.send("Invalid channel, does this channel exist?")
             return
 
-        if channel_type not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs'):
+        if channel_type not in ('modlogs', 'messagelogs', 'memberlogs', 'auditlogs', 'filterlogs'):
             raise commands.BadArgument("Invalid Database Channel")
 
         async with self.bot.db.acquire() as conn:
@@ -125,6 +125,7 @@ class Setup(commands.Cog):
     @flags.add_flag("--modlogs", type=discord.TextChannel)
     @flags.add_flag("--memberlogs", type=discord.TextChannel)
     @flags.add_flag("--messagelogs", type=discord.TextChannel)
+    @flags.add_flag("--filterlogs", type=discord.TextChannel)
     @logchannel.command(cls=flags.FlagCommand, aliases=['set'])
     async def channelset(self, ctx, **log_channels):
         """Sets a channel to be used as a log channel (Owner or administrator)
@@ -134,11 +135,12 @@ class Setup(commands.Cog):
         - `--modlogs` arguments: `<channel>` logs moderaton commands like warn/ban/mute/kick/lockdown
         - `--memberlogs` arguments: `<channel>` logs all data relating to users being updated, like nickname changes or role changes
         - `--messagelogs` arguments: `<channel>` logs all data relating to messages, such as edits, deletions, or pinned messages by trusted members
+        - `--filterlogs` arguments: `<channel>` logs all banned words that are said
         """
         active_flags = {l for l in log_channels.items() if l[1]}
         if not active_flags:
             return await ctx.send(
-                "Please specify a logchannel type you would like to add, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
+                "Please specify a logchannel type you would like to add, flags are `--modlogs`, `--memberlogs`, `--messagelogs`, and `--filterlogs`")
 
         else:
             msg = ""
@@ -158,6 +160,7 @@ class Setup(commands.Cog):
     @flags.add_flag("--modlogs", default=None, action="store_true")
     @flags.add_flag("--memberlogs", default=None, action="store_true")
     @flags.add_flag("--messagelogs", default=None, action="store_true")
+    @flags.add_flag("--filterlogs", default=None, action="store_true")
     @logchannel.command(cls=flags.FlagCommand, aliases=['unset'])
     async def channelunset(self, ctx, **channel_type):
         """
@@ -168,10 +171,11 @@ class Setup(commands.Cog):
         - `--modlogs` Unsets the mod logs channel.
         - `--memberlogs` Unsets the member logs channel.
         - `--messagelogs` Unsets the message logs channel.
+        - `--filterlogs` Unsets the filter logs channel.
         """
         active_flags = [l[0] for l in channel_type.items() if l[1]]
         if not active_flags:
-            await ctx.send("Please specify a logchannel type you would like to remove, flags are `--modlogs`, `--memberlogs`, and `--messagelogs`")
+            await ctx.send("Please specify a logchannel type you would like to remove, flags are `--modlogs`, `--memberlogs`, `--messagelogs`, and `--filterlogs`")
         else:
             msg = ""
             async with ctx.channel.typing():

@@ -46,7 +46,8 @@
         modlogs BIGINT,
         messagelogs BIGINT,
         memberlogs BIGINT,
-        auditlogs BIGINT
+        auditlogs BIGINT,
+        filterlogs BIGINT
     );
 
     -- guild settings for core bot
@@ -132,4 +133,21 @@
         type TEXT NOT NULL,
         expiration TIMESTAMP NOT NULL,
         extra jsonb
+    );
+
+    CREATE TABLE IF NOT EXISTS filtered_words (
+        id SERIAL PRIMARY KEY,
+        word TEXT,
+        guild_id BIGINT,
+        punishment TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS whitelisted_channels (
+        channel_id BIGINT PRIMARY KEY,
+        guild_id BIGINT
+    );
+
+    CREATE TABLE IF NOT EXISTS whitelisted_roles (
+        role_id BIGINT PRIMARY KEY,
+        guild_id BIGINT
     );

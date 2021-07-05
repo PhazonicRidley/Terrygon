@@ -78,7 +78,7 @@ class Logger:
 
     async def dispatch(self, database_channel, guild: discord.Guild, log_type, msg, embed: discord.Embed = None):
         """Sends the logging message off to the registered channel"""
-        if not database_channel in ("modlogs", "memberlogs", "messagelogs", "auditlogs"):
+        if not database_channel in ("modlogs", "memberlogs", "messagelogs", "auditlogs", "filterlogs"):
             raise errors.loggingError(log_type, database_channel)
 
         query = f"SELECT {database_channel} FROM log_channels WHERE guildID = $1"
@@ -115,6 +115,11 @@ class Logger:
             logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}d:__** {author.mention} | {author.name}#{author.discriminator} {log_type}d {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
             if reason is not None:
                 logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
+
+        elif log_type == 'unban':
+            logging_msg = f"{self.emotes['unban']} **__User {log_type.title()}ned:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ned {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
+            if reason is not None:
+                logging_msg += f"\n{self.emotes['reason']}Reason: {reason}"
 
         # logs lockdowns and channel clears
         elif isinstance(target, discord.TextChannel):
@@ -365,6 +370,7 @@ class Logger:
 
         await self.dispatch('modlogs', author.guild, log_type, msg)
 
+    # Filter logs
     async def word_filter_update(self, log_type, word, author, punishment=None):
         """Logs filter word additions and deletions"""
         log_type = log_type.lower()
@@ -380,7 +386,7 @@ class Logger:
         else:
             return
 
-        await self.dispatch('messagelogs', author.guild, log_type, msg)
+        await self.dispatch('filterlogs', author.guild, log_type, msg)
 
     async def channel_whitelist(self, log_type, channel, author):
         """Logs channel whitelist or dewhitelist"""
@@ -391,7 +397,7 @@ class Logger:
         else:
             return
 
-        await self.dispatch('messagelogs', author.guild, log_type, msg)
+        await self.dispatch('filterlogs', author.guild, log_type, msg)
 
     async def filter_pop(self, member, highlighted_message, punishment):
         """Logs filter pops"""
@@ -400,4 +406,4 @@ class Logger:
         if punishment != "notify":
             msg += f"\nPunishment: {punishment}"
 
-        await self.dispatch("messagelogs", member.guild, "filterpop", msg, embed=embed)
+        await self.dispatch("filterlogs", member.guild, "filterpop", msg, embed=embed)

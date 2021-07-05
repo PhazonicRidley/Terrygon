@@ -375,13 +375,31 @@ class Mod(commands.Cog):
             return
 
         try:
-            await ctx.guild.ban(user, reason=reason if reason is not None else "No reason given")
+            await ctx.guild.ban(user, reason=reason if reason is not None else "No reason given", delete_message_days=0)
         except discord.Forbidden:
             await ctx.send("I am unable to ban, check permissions!")
             return
 
         await ctx.send(f"{user.name}#{user.discriminator} has been banned {self.bot.discord_logger.emotes['ban']}")
         await self.bot.discord_logger.mod_logs(ctx, 'ban', user, ctx.author, reason)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Admin", ban_members=True)
+    @commands.command(aliases=['unyeet'])
+    async def unban(self, ctx, member: typing.Union[discord.Member, int], *, reason: str = None):
+        """Unban a person. (Admin+)"""
+        user = await self.ban_prep(ctx, member, 'normal', reason=reason)
+        if not user:
+            return
+
+        try:
+            await ctx.guild.unban(user, reason=reason if reason is not None else "No reason given")
+        except discord.Forbidden:
+            await ctx.send("I am unable to unban, check permissions!")
+            return
+
+        await ctx.send(f"{user.name}#{user.discriminator} has been unbanned {self.bot.discord_logger.emotes['unban']}")
+        await self.bot.discord_logger.mod_logs(ctx, 'unban', user, ctx.author, reason)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Admin", ban_members=True)
