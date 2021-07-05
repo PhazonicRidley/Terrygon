@@ -3,7 +3,7 @@
 *.json
 *.sql
 *.log
-logs/
+logs/*.log
 *.pyc
 .DS_Store
 .idea
