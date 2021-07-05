@@ -97,12 +97,11 @@ class Scheduler:
 
         if None in (guild, author, user):
             err = f"Cannot process a timed unmute with id {mute_id} cannot find either the guild, author, or user. guild: {guild}, author: {author}, user {user}"
-            print(err)
+            await self.bot.db.execute("DELETE FROM mutes WHERE id = $1", mute_id)
             console_logger.info(err)
             return
 
-        muted_role = guild.get_role(
-            await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
+        muted_role = guild.get_role(await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
         if muted_role is None:
             try:
                 await guild.owner.send("Unable to unmute a timed mute, muted role is not set.")

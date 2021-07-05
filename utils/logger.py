@@ -3,13 +3,12 @@ from datetime import datetime, timedelta
 
 import discord
 import logzero
+import utils.common
 from discord.utils import escape_mentions
 from logzero import logger as console_logger
 
 from addons import mod
-from utils import errors
-
-logzero.logfile("logs/discord_logger.log", maxBytes=1e6)
+from utils import errors, common
 
 
 class Logger:
@@ -68,7 +67,13 @@ class Logger:
             "set": "",
             "shutdown": "",
             "restart": "",
-            "notice": "\U00002139"
+            "notice": "\U00002139",
+            "wordadd": ":pensive:",
+            "worddelete": ":thumbsdown:",
+            "wordupdate": ":arrows_counterclockwise:",
+            "filterpop": ":mega:",
+            "channelwhitelist": ":ballot_box_with_check:",
+            "channeldewhitelist": ":no_mouth:"
         }
 
     async def dispatch(self, database_channel, guild: discord.Guild, log_type, msg, embed: discord.Embed = None):
@@ -81,7 +86,7 @@ class Logger:
 
             channel_id = await conn.fetchval(query, guild.id)
             if channel_id is None:
-                raise errors.loggingError(log_type, guild)
+                return
 
             else:
                 log_channel = self.bot.get_channel(channel_id)
@@ -350,7 +355,8 @@ class Logger:
 
         await self.dispatch('modlogs', guild, type, msg)
 
-    async def timed_mod_logs(self, log_type: str, user: discord.Member, author: discord.Member, time: datetime, reason: str = None):
+    async def timed_mod_logs(self, log_type: str, user: discord.Member, author: discord.Member, time: datetime,
+                             reason: str = None):
         """Logs timed moderation actions"""
         msg = f"""{self.emotes[log_type]} **__Timed {log_type.title()}:__** {author.mention} has given {user.mention} a timed {log_type}. (All dates and times are in UTC) \n{self.emotes['creationdate']} Expiration: `{time.strftime("%Y-%m -%d %H:%M:%S")}`\n{self.emotes['id']} ID: {user.id}"""
 
@@ -359,3 +365,39 @@ class Logger:
 
         await self.dispatch('modlogs', author.guild, log_type, msg)
 
+    async def word_filter_update(self, log_type, word, author, punishment=None):
+        """Logs filter word additions and deletions"""
+        log_type = log_type.lower()
+
+        if log_type == "wordadd":
+            msg = f"{self.emotes[log_type]} **__Word Added__** {author.mention} ({author} | {author.id} added the word `{word}` to the filter. Punishment: `{punishment}`"
+        elif log_type == "worddelete":
+            msg = f"{self.emotes[log_type]} **__Word Deleted__** {author.mention} ({author} | {author.id}) removed the word `{word}` from the filter"
+
+        elif log_type == "wordupdate":
+            msg = f"{self.emotes[log_type]} **__Word Updated__** {author.mention} ({author} | {author.id}) updated to word `{word}` **Punishment: {punishment}**"
+
+        else:
+            return
+
+        await self.dispatch('messagelogs', author.guild, log_type, msg)
+
+    async def channel_whitelist(self, log_type, channel, author):
+        """Logs channel whitelist or dewhitelist"""
+        if log_type == "channelwhitelist":
+            msg = f"{self.emotes[log_type]} **__Channel Whitelist:__** {author.mention} ({author} | {author.id}) whitelisted {channel.mention}\nID: {channel.id}"
+        elif log_type == "channeldewhitelist":
+            msg = f"{self.emotes[log_type]} **__Channel Dewhitelist:__** {author.mention} ({author} | {author.id}) dewhitelisted {channel.mention}\nID: {channel.id}"
+        else:
+            return
+
+        await self.dispatch('messagelogs', author.guild, log_type, msg)
+
+    async def filter_pop(self, member, highlighted_message, punishment):
+        """Logs filter pops"""
+        embed = discord.Embed(description=highlighted_message, color=common.gen_color(member.id))
+        msg = f"{self.emotes['filterpop']} **__Filter Popped:__** {member.mention} ({member}) popped the filter\n{self.emotes['id']}User ID: {member.id}"
+        if punishment != "notify":
+            msg += f"\nPunishment: {punishment}"
+
+        await self.dispatch("messagelogs", member.guild, "filterpop", msg, embed=embed)
