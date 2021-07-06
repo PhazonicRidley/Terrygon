@@ -59,6 +59,7 @@
         enableJoinLeaveLogs BOOLEAN DEFAULT TRUE,
         enableCoreMessageLogs BOOLEAN DEFAULT TRUE,
         warn_punishments jsonb,
+        staff_filter BOOLEAN DEFAULT TRUE,
         prefixes TEXT[]
 
     );

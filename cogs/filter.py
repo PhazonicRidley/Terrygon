@@ -107,18 +107,30 @@ class Filter(commands.Cog):
             return
 
         try:
-            dm_msg = f"You have popped the filter on {member.guild} " + dm_tag
+            dm_msg = f"You have popped the filter on {member.guild}. " + dm_tag
             await member.send(dm_msg)
         except discord.Forbidden:
             pass
 
+    async def check_staff_filter(self, message: discord.Message) -> bool:
+        """Checks for filter bypass for staff"""
+        is_staff = await checks.nondeco_is_staff_or_perms(message, self.bot.db, "Mod", manage_message=True)
+        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1",
+                                               message.guild.id)
+        return is_staff and bypass_on
+
     @commands.Cog.listener()
     async def on_message(self, message):
         """Checks messages"""
-        is_staff = await checks.nondeco_is_staff_or_perms(message, self.bot.db, "Mod", manage_message=True)
-        is_whitelist = await self.bot.db.fetchval("SELECT channel_id FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2", message.channel.id, message.guild.id)
+        if message.guild is None:
+            return
+
+        staff_bypass = await self.check_staff_filter(message)
+        is_whitelist = await self.bot.db.fetchval(
+            "SELECT channel_id FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2", message.channel.id,
+            message.guild.id)
         is_me = self.bot.user == message.author
-        if is_me or is_staff or is_whitelist:
+        if is_me or staff_bypass or is_whitelist:
             return
 
         filtered_words = await self.bot.db.fetch("SELECT word, punishment FROM filtered_words WHERE guild_id = $1",
@@ -154,6 +166,20 @@ class Filter(commands.Cog):
 
         # log
         await self.bot.discord_logger.filter_pop(message.author, highlighted_message, highest_punishment)
+
+    @commands.guild_only()
+    @checks.is_staff_or_perms("Owner", administrator=True)
+    @commands.command(name="staffbypass")
+    async def staff_filter_bypass(self, ctx):
+        """Toggles the staff whitelist for the filter"""
+        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1",
+                                               ctx.guild.id)
+        if bypass_on:
+            await self.bot.db.execute("UPDATE guild_settings SET staff_filter = false WHERE guildid = $1", ctx.guild.id)
+            await ctx.send("Staff can no longer bypass the filter.")
+        else:
+            await self.bot.db.execute("UPDATE guild_settings SET staff_filter = true WHERE guildid = $1", ctx.guild.id)
+            await ctx.send("Staff can now bypass the filter.")
 
     # whitelisted channels funcs (add/remove)
     @commands.guild_only()
@@ -211,7 +237,8 @@ class Filter(commands.Cog):
         """Lists whitelisted channels"""
         channels = ""
         deleted_channels = ""
-        c_ids = await self.bot.db.fetchrow("SELECT channel_id FROM whitelisted_channels WHERE guild_id = $1", ctx.guild.id)
+        c_ids = await self.bot.db.fetchrow("SELECT channel_id FROM whitelisted_channels WHERE guild_id = $1",
+                                           ctx.guild.id)
         for c_id in c_ids:
             c = ctx.guild.get_channel(c_id)
             if not c:
