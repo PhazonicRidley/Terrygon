@@ -70,7 +70,7 @@ class Filter(commands.Cog):
             return await ctx.send("Invalid punishment given, valid options are `warn`, `delete`, or `notify`")
 
         await self.bot.db.execute("UPDATE filtered_words SET punishment = $1 WHERE word = $2 AND guild_id = $3",
-                                  punishment, word, ctx.guid.id)
+                                  punishment, word, ctx.guild.id)
         await ctx.send("Word punishment updated.")
         await self.bot.discord_logger.word_filter_update("wordupdate", word, ctx.author, punishment)
 
@@ -138,8 +138,7 @@ class Filter(commands.Cog):
         if filtered_words is None:
             return
         matches = []
-        no_whitespace_message = message.content.replace(" ", "")
-        no_whitespace_message = re.sub(r"[^0-9a-zA-Z]+", "", no_whitespace_message)
+        no_whitespace_message = re.sub(r"[^0-9a-zA-Z]", "", message.content)
         for word_tup in filtered_words:
             res = re.search(word_tup[0], no_whitespace_message, re.I)
             if res:
