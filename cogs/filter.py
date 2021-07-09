@@ -24,6 +24,7 @@ class Filter(commands.Cog):
         await ctx.send_help(ctx.command)
 
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_messages=True)
     @word_filter.command(name="add")
     async def add_word(self, ctx, word, punishment):
         """Adds a word to the filter.
@@ -46,6 +47,7 @@ class Filter(commands.Cog):
         await self.bot.discord_logger.word_filter_update("wordadd", word, ctx.author, punishment)
 
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_messages=True)
     @word_filter.command(name="delete", aliases=["remove", "del"])
     async def del_word(self, ctx, word):
         """Removes a word from the filter"""
@@ -59,6 +61,7 @@ class Filter(commands.Cog):
         await self.bot.discord_logger.word_filter_update("worddelete", word, ctx.author)
 
     @commands.guild_only()
+    @checks.is_staff_or_perms("Mod", manage_messages=True)
     @word_filter.command(name="update")
     async def update_word(self, ctx, word, punishment):
         """Updates punishment for a word"""
@@ -182,14 +185,14 @@ class Filter(commands.Cog):
 
     # whitelisted channels funcs (add/remove)
     @commands.guild_only()
-    @checks.is_staff_or_perms("Mod", manage_channels=True)
+    @checks.is_staff_or_perms("Admin", manage_channels=True)
     @commands.group(name="channelwhitelist", invoke_without_command=True, aliases=['whitelist'])
     async def channel_whitelist(self, ctx):
         """Channel whitelist for filter"""
         await ctx.send_help(ctx.command)
 
     @commands.guild_only()
-    @checks.is_staff_or_perms("Mod", manage_channels=True)
+    @checks.is_staff_or_perms("Admin", manage_channels=True)
     @channel_whitelist.command(name="add")
     async def whitelist_add(self, ctx, channel: discord.TextChannel = None):
         """Adds a text channel to the whitelist"""
@@ -207,7 +210,7 @@ class Filter(commands.Cog):
         await self.bot.discord_logger.channel_whitelist("channelwhitelist", channel, ctx.author)
 
     @commands.guild_only()
-    @checks.is_staff_or_perms("Mod", manage_channels=True)
+    @checks.is_staff_or_perms("Admin", manage_channels=True)
     @channel_whitelist.command(name="delete", aliases=['remove', 'del'])
     async def whitelist_remove(self, ctx, channel: typing.Union[discord.TextChannel, int] = None):
         """Removes a channel from the whitelist"""
