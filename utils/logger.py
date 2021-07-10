@@ -1,9 +1,6 @@
 import typing
 from datetime import datetime, timedelta
-
 import discord
-import logzero
-import utils.common
 from discord.utils import escape_mentions
 from logzero import logger as console_logger
 
@@ -68,7 +65,7 @@ class Logger:
             "shutdown": "",
             "restart": "",
             "notice": "\U00002139",
-            "wordadd": ":pensive:",
+            "wordadd": ":new:",
             "worddelete": ":thumbsdown:",
             "wordupdate": ":arrows_counterclockwise:",
             "filterpop": ":mega:",

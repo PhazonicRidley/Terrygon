@@ -1,6 +1,6 @@
 import re
 import typing
-
+import string
 import discord
 from discord.ext import commands
 from utils import checks
@@ -122,6 +122,13 @@ class Filter(commands.Cog):
                                                message.guild.id)
         return is_staff and bypass_on
 
+    def char_str_replace(dictonary: dict, input_string: str) -> str:
+        """Replaces character in a dictonary"""
+        for k, v in dictonary.items():
+            input_string = input_string.replace(k, v)
+
+        return input_string
+
     @commands.Cog.listener()
     async def on_message(self, message):
         """Checks messages"""
@@ -142,7 +149,8 @@ class Filter(commands.Cog):
             return
         matches = []
         no_whitespace_message = re.sub(r"[^0-9a-zA-Z]", "", message.content)
-        for word_tup in filtered_words:
+        msg = message.content
+        for word_tup in filtered_words:                         
             res = re.search(word_tup[0], no_whitespace_message, re.I)
             if res:
                 matches.append((res, word_tup[1]))
