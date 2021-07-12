@@ -99,32 +99,51 @@ class Filter(commands.Cog):
         """Logs and gives punishment"""
         if punishment == "delete":
             await message.delete()
-            dm_tag = "Your message has been deleted"
+            try:
+                dm_msg = f"You have popped the filter on {member.guild}. " + "Your message has been deleted"
+                await member.send(dm_msg)
+            except discord.Forbidden:
+                pass
 
         elif punishment == "warn":
             await message.delete()
             await self.bot.db.execute("INSERT INTO warns (userid, authorid, guildid, reason) VALUES ($1, $2, $3, $4)",
                                       member.id, self.bot.user.id, member.guild.id, "Filter Pop")
-            dm_tag = "You have been warned because of this."
-        else:
-            return
+            try:
+                dm_msg = f"You have popped the filter on {member.guild}. " + "You have been warned because of this."
+                await member.send(dm_msg)
+            except discord.Forbidden:
+                pass
+            punishment_data = await self.bot.db.fetchval(
+                "SELECT warn_punishments FROM guild_settings WHERE guildid = $1",
+                message.guild.id)
+            cog = self.bot.get_cog("Warn")
+            if punishment_data and cog:
+                highest_punishment_value = max(punishment_data.keys())
+                warn_num = int(
+                await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guildid = $2;", member.id,
+                                    member.guild.id)) + 1
+                if str(warn_num) in list(punishment_data.keys()):
+                    await cog.punish(member, warn_num, punishment_data[str(warn_num)])
+               
+                elif warn_num > int(highest_punishment_value):
+                    await cog.punish(member, warn_num, punishment_data[str(highest_punishment_value)])
 
-        try:
-            dm_msg = f"You have popped the filter on {member.guild}. " + dm_tag
-            await member.send(dm_msg)
-        except discord.Forbidden:
-            pass
+            elif not cog:
+                msg = ":bangbang: Unable to load the Warn cog please contact a bot maintainer."
+                # TODO: log properly
+                await self.bot.discord_logger.custom_log("modlogs", message.guild, msg)
+                      
 
     async def check_staff_filter(self, message: discord.Message) -> bool:
         """Checks for filter bypass for staff"""
         is_staff = await checks.nondeco_is_staff_or_perms(message, self.bot.db, "Mod", manage_message=True)
-        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1",
-                                               message.guild.id)
+        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1", message.guild.id)
         return is_staff and bypass_on
 
-    def char_str_replace(dictonary: dict, input_string: str) -> str:
-        """Replaces character in a dictonary"""
-        for k, v in dictonary.items():
+    def char_str_replace(self, dictionary: dict, input_string: str) -> str:
+        """Replaces character in a dictionary"""
+        for k, v in dictionary.items():
             input_string = input_string.replace(k, v)
 
         return input_string
@@ -150,7 +169,7 @@ class Filter(commands.Cog):
         matches = []
         no_whitespace_message = re.sub(r"[^0-9a-zA-Z]", "", message.content)
         msg = message.content
-        for word_tup in filtered_words:                         
+        for word_tup in filtered_words:
             res = re.search(word_tup[0], no_whitespace_message, re.I)
             if res:
                 matches.append((res, word_tup[1]))

@@ -60,6 +60,7 @@
         enableCoreMessageLogs BOOLEAN DEFAULT TRUE,
         warn_punishments jsonb,
         staff_filter BOOLEAN DEFAULT TRUE,
+        warn_automute_time INT DEFAULT 3600,
         prefixes TEXT[]
 
     );

@@ -146,54 +146,55 @@ class Warn(commands.Cog):
                 await ctx.send("No punishment is set for this warn number!")
 
     # handle warn punishments
-    async def punish(self, ctx, member, warn_number, action):
+    async def punish(self, member: discord.Member, warn_number: int, action: str, moderator: discord.Member = None):
         """Punishes a user for a warn"""
-        if action.lower() == "ban":
+        bot_perms = [x[0] for x in member.guild.get_member(self.bot.user.id).guild_permissions]
+        if action.lower() == "ban" and 'ban_members' in bot_perms:
             try:
-                await member.send(f"You have been banned from {ctx.guild.name}")
+                await member.send(f"You have been banned from {member.guild.name}")
             except discord.Forbidden:
                 pass
 
-            try:
-                await member.ban(reason=f"Got {warn_number} warn(s)")
-            except discord.Forbidden:
-                return await ctx.send("Unable to ban member, check my permissions!")
+            await member.ban(reason=f"Got {warn_number} warn(s)")
 
-        elif action.lower() == "kick":
+        elif action.lower() == "kick" and 'kick_members' in bot_perms:
             try:
-                await member.send(f"You have been kicked from {ctx.guild.name}")
-
+                await member.send(f"You have been kicked from {member.guild.name}")
             except discord.Forbidden:
                 pass
-            try:
-                await member.kick(reason=f"Got {warn_number} warn(s)")
 
-            except discord.Forbidden:
-                return await ctx.send("Unable to kick member, check my permissions!")
+            await member.kick(reason=f"Got {warn_number} warn(s)")
 
-        elif action.lower() == "mute":
+        elif action.lower() == "mute" and 'manage_roles' in bot_perms:
             cog = self.bot.get_cog("Mod")
             if not cog:
-                return await ctx.send("Mod cog is not loaded, please load that cog to have auto-muting working")
+                msg = "Unable to auto mute member, Mod module cannot be loaded. Please contact a bot maintainer."
+                await self.bot.discord_logger.custom_log("modlogs", member.guild, msg)
+
             time_seconds = await self.bot.db.fetchval(
-                "SELECT warn_automute_time FROM guild_settings WHERE guildid = $1", ctx.guild.id)
+                "SELECT warn_automute_time FROM guild_settings WHERE guildid = $1", member.guild.id)
             reason = f"Got {warn_number} warns."
-            res = await cog.mute_prep(ctx, member, 'timed')
+            res = await cog.silent_mute_prep(member, 'timed')
             if res == -1:
                 return
             elif res == 1:
                 m_id = await self.bot.db.fetchval("SELECT id FROM mutes WHERE userid = $1 AND guildid = $2", member.id,
-                                                  ctx.guild.id)
+                                                  member.guild.id)
             else:
-                m_id = await self.bot.db.fetchval(
-                    "INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4) RETURNING id",
-                    member.id, ctx.author.id, ctx.guild.id, reason)
+                # if no moderator is given, the bot will take credit for the mute as the moderator responsable.
+                if moderator:
+                    m_id = await self.bot.db.fetchval(
+                        "INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4) RETURNING id",
+                        member.id, moderator.id, member.guild.id, reason)
+                else:
+                    m_id = await self.bot.db.fetchval("INSERT INTO mutes (userID, authorID, guildID, reason) VALUES ($1, $2, $3, $4) RETURNING id",
+                        member.id, self.bot.user.id, member.guild.id, reason)
 
             await self.bot.scheduler.add_timed_job('mute', datetime.utcnow(), timedelta(seconds=time_seconds), action_id=m_id)
 
         else:
-            # this should never trigger!
-            raise discord.errors.DiscordException("Unable to process warn punishment request")
+            msg = f":bangbang: Unable to auto {action}, missing permissions."
+            await self.bot.discord_logger.custom_log("modlogs", member.guild, msg)
 
         try:
             await self.bot.discord_logger.auto_mod(action, member, reason=f"Got {warn_number} warn(s)")
@@ -249,12 +250,12 @@ class Warn(commands.Cog):
 
         if punishment_data:
             if str(warn_num) in list(punishment_data.keys()):
-                await self.punish(ctx, member, warn_num, punishment_data[str(warn_num)])
-
+                await self.punish(member, warn_num, punishment_data[str(warn_num)], ctx.author)
+               
             # just in case
-            if warn_num > int(highest_punishment_value):
-                await self.punish(ctx, member, warn_num, punishment_data[str(highest_punishment_value)])
-
+            elif warn_num > int(highest_punishment_value):
+                await self.punish(member, warn_num, punishment_data[str(highest_punishment_value)], ctx.author)
+                
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
     @commands.command(name="deletewarn", aliases=["delwarn", 'unwarn'])

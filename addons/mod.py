@@ -15,7 +15,38 @@ class Mod(commands.Cog):
         self.bot = bot
 
     # mute commands
-    async def mute_prep(self, ctx, member, mode: str):
+    async def silent_mute_prep(self, member: discord.Member, mode: str) -> int:
+        """Sets up mutes without output, this should only be called after permissions have been checked"""
+        async with self.bot.db.acquire() as conn:
+            muted_role_id = await conn.fetchval("SELECT mutedRole FROM roles WHERE guildid = $1", member.guild.id)
+            if not muted_role_id:
+                return -1  # no wizard to set up muted role, please use regular version for that
+
+            muted_role = member.guild.get_role(muted_role_id)
+            if not muted_role:
+                return -1
+            try:
+                query_output = await conn.fetchval(
+                        "SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
+                        member.guild.id)
+                if muted_role in member.roles or query_output == member.id:
+                    if mode == 'timed':
+                        return 1
+                    else:
+                        return -1
+            except TypeError:
+                pass
+
+        try:
+            await member.add_roles(muted_role)
+        except discord.Forbidden:
+            return -1
+
+        return 0
+
+
+
+    async def mute_prep(self, ctx, member, mode: str) -> int:
         """Sets up the mute commands"""
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "mute")
         if mod_bot_protection is not None:

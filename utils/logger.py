@@ -407,3 +407,7 @@ class Logger:
             msg += f"\nPunishment: {punishment}"
 
         await self.dispatch("filterlogs", member.guild, "filterpop", msg, embed=embed)
+    
+    async def custom_log(self, log_channel: str, guild: discord.Guild, msg: str, embed: discord.Embed=None):
+        """Sends a custom log to any channel"""
+        await self.dispatch(log_channel, guild, log_channel, msg, embed)
