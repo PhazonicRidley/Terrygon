@@ -85,54 +85,67 @@ class Scheduler:
     # function to run jobs and remove them from the db
     # then add timed mod commands
 
-    async def time_unmute(self, **kwargs):
-        """Unmutes a user from a timemute"""
-        mute_id = kwargs['action_id']
-        mute_record = await self.bot.db.fetchrow("SELECT * FROM mutes WHERE id = $1", mute_id)
-        if mute_record is None:
-            return
+    async def get_data(self, action_id: int, table: str) -> (tuple, None):
+        """Gets data from database about various mod actions and returns discord objects or IDs"""
+        table = table.lower()
+        if table not in ('mutes', 'bans'):
+            raise TypeError("Table type does not exist.")
 
-        guild = self.bot.get_guild(mute_record['guildid'])
-        author = guild.get_member(mute_record['authorid'])
-        user = guild.get_member(mute_record['userid'])
+        action_record = await self.bot.db.fetchrow(f"SELECT * FROM {table} WHERE id = $1", action_id)
+        if action_record is None:
+            return None
 
+        guild = self.bot.get_guild(action_record['guildid'])
+        author = guild.get_member(action_record['authorid'])
+        user = guild.get_member(action_record['userid'])
         if guild is None:
             # properly log later THIS SHOULD TRIGGER ALMOST NEVER
-            await self.bot.db.execute("DELETE FROM mutes WHERE id = $1", mute_id)
-            return
+            await self.bot.db.execute(f"DELETE FROM {table} WHERE id = $1", action_id)
+            return None
 
         if user is None:
             try:
-                user = await self.bot.fetch_user(mute_record['userid'])
+                user = await self.bot.fetch_user(action_record['userid'])
             except discord.NotFound:
-                user = mute_record['userid']
-            
+                user = action_record['userid']
+
         if author is None:
             try:
-                author = await self.bot.fetch(mute_record['authorid'])
+                author = await self.bot.fetch_user(action_record['authorid'])
             except discord.NotFound:
-                author = mute_record['authorid']
+                author = action_record['authorid']
 
-        muted_role = guild.get_role(await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
+        return guild, author, user
+
+    async def time_unmute(self, **kwargs):
+        """Unmutes a user from a timemute"""
+        mute_id = kwargs['action_id']
+        data = await self.get_data(mute_id, "mutes")
+        if data:
+            guild, author, user = data
+        else:
+            return
+
+        muted_role = guild.get_role(
+            await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
         if muted_role is None:
             try:
                 await guild.owner.send("Unable to unmute a timed mute, muted role is not set.")
             except discord.Forbidden:
                 pass
             return
-        try:
-            await self.bot.db.execute("DELETE FROM mutes WHERE userID = $1 AND guildID = $2", user.id, guild.id)
-            if isinstance(user, typing.Union[discord.Member, discord.User]):
-                await user.remove_roles(muted_role, reason="Time mute expired")
-        except discord.Forbidden:
+
+        await self.bot.db.execute("DELETE FROM mutes WHERE id = $1", mute_id)
+        if isinstance(user, discord.Member):
             try:
-                await guild.owner.send(f"Cannot unmute on {guild.name} a timed mute because I cannot manage roles")
+                await user.remove_roles(muted_role, reason="Time mute expired")
             except discord.Forbidden:
-                pass
-        except AttributeError:
-            pass
-        
-        if isinstance(user, typing.Union[discord.Member, discord.User]):
+                try:
+                    await guild.owner.send(f"Cannot unmute on {guild.name} a timed mute because I cannot manage roles")
+                except discord.Forbidden:
+                    pass
+
+        if isinstance(user, discord.Member):
             try:
                 await user.send(f"You have been unmuted in {guild.name}")
             except discord.Forbidden:
@@ -146,24 +159,18 @@ class Scheduler:
     async def time_unban(self, **kwargs):
         """Unmutes a user from a timemute"""
         ban_id = kwargs['action_id']
-        ban_record = await self.bot.db.fetchrow("SELECT * FROM bans WHERE id = $1", ban_id)
-        if ban_record is None:
-            return
-        guild = self.bot.get_guild(ban_record['guildid'])
-        author = guild.get_member(ban_record['authorid'])
-        user = await self.bot.fetch_user(ban_record['userid'])
-
-        if None in (guild, author, user):
-            s = f"Time unban with ban_id {ban_id} could not be processed because either the guild, author, or banned user was not found in the database! guild: {guild}, author: {author}, user: {user}"
-            print(s)
-            console_logger.info(s)
+        data = await self.get_data(ban_id, "bans")
+        if data:
+            guild, author, user = data
+        else:
             return
 
-        try:
-            await guild.unban(user, reason="Timeban expired")
-            await self.bot.db.execute("DELETE FROM bans WHERE userid = $1 AND guildid = $2", user.id, guild.id)
-        except discord.Forbidden:
-            pass
+        await self.bot.db.execute("DELETE FROM bans WHERE userid = $1 AND guildid = $2", user.id, guild.id)
+        if isinstance(user, discord.User):
+            try:
+                await guild.unban(user, reason="Timeban expired")
+            except discord.Forbidden:
+                pass
 
         try:
             await self.bot.discord_logger.expiration_mod_logs('ban', guild, author, user)
