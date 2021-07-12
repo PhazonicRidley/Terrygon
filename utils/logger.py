@@ -351,9 +351,13 @@ class Logger:
 
         await self.dispatch('modlogs', author.guild, action, logging_msg)
 
-    async def expiration_mod_logs(self, type: str, guild: discord.Guild, author: discord.Member, user: discord.Member):
+    async def expiration_mod_logs(self, type: str, guild: discord.Guild, author: typing.Union[discord.Member, discord.User, int], user: typing.Union[discord.Member, discord.User, int]):
         """Logs a timed mod action removal on a user"""
-        msg = f"{self.emotes['un' + type]} **{type.title()} Expired:** {user.mention}'s {type} has expired.\n{self.emotes['id']} ID: {user.id}\n:police_car: Moderator: {author}"
+        if isinstance(user, (discord.Member, discord.User)):
+            msg = f"{self.emotes['un' + type]} **{type.title()} Expired:** {user.mention}'s {type} has expired.\n{self.emotes['id']} ID: {user.id}\n:police_car: Moderator: {author}"
+        else:
+            msg = f"{self.emotes['un' + type]} **{type.title()} Expired:** User ID {user} {type} has expired.\n:police_car: Moderator: {author}"
+
 
         await self.dispatch('modlogs', guild, type, msg)
 

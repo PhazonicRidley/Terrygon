@@ -1,9 +1,10 @@
+from logging import NOTSET
 import os
 
 import discord
 from discord.ext import commands
 import asyncio
-import time
+import typing
 from datetime import datetime, timedelta
 from utils import errors
 from logzero import setup_logger
@@ -95,11 +96,22 @@ class Scheduler:
         author = guild.get_member(mute_record['authorid'])
         user = guild.get_member(mute_record['userid'])
 
-        if None in (guild, author, user):
-            err = f"Cannot process a timed unmute with id {mute_id} cannot find either the guild, author, or user. guild: {guild}, author: {author}, user {user}"
+        if guild is None:
+            # properly log later THIS SHOULD TRIGGER ALMOST NEVER
             await self.bot.db.execute("DELETE FROM mutes WHERE id = $1", mute_id)
-            console_logger.info(err)
             return
+
+        if user is None:
+            try:
+                user = await self.bot.fetch_user(mute_record['userid'])
+            except discord.NotFound:
+                user = mute_record['userid']
+            
+        if author is None:
+            try:
+                author = await self.bot.fetch(mute_record['authorid'])
+            except discord.NotFound:
+                author = mute_record['authorid']
 
         muted_role = guild.get_role(await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
         if muted_role is None:
@@ -109,18 +121,22 @@ class Scheduler:
                 pass
             return
         try:
-            await user.remove_roles(muted_role, reason="Time mute expired")
             await self.bot.db.execute("DELETE FROM mutes WHERE userID = $1 AND guildID = $2", user.id, guild.id)
+            if isinstance(user, typing.Union[discord.Member, discord.User]):
+                await user.remove_roles(muted_role, reason="Time mute expired")
         except discord.Forbidden:
             try:
                 await guild.owner.send(f"Cannot unmute on {guild.name} a timed mute because I cannot manage roles")
             except discord.Forbidden:
                 pass
-
-        try:
-            await user.send(f"You have been unmuted in {guild.name}")
-        except discord.Forbidden:
+        except AttributeError:
             pass
+        
+        if isinstance(user, typing.Union[discord.Member, discord.User]):
+            try:
+                await user.send(f"You have been unmuted in {guild.name}")
+            except discord.Forbidden:
+                pass
 
         try:
             await self.bot.discord_logger.expiration_mod_logs('mute', guild, author, user)
