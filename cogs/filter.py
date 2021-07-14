@@ -1,9 +1,18 @@
 import re
 import typing
 import string
+from fuzzywuzzy import fuzz
 import discord
 from discord.ext import commands
 from utils import checks
+
+
+def char_str_replace(dictionary: dict, input_string: str) -> str:
+    """Replaces character in a dictionary"""
+    for k, v in dictionary.items():
+        input_string = input_string.replace(k, v)
+
+    return input_string
 
 
 class Filter(commands.Cog):
@@ -121,11 +130,12 @@ class Filter(commands.Cog):
             if punishment_data and cog:
                 highest_punishment_value = max(punishment_data.keys())
                 warn_num = int(
-                await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guildid = $2;", member.id,
-                                    member.guild.id)) + 1
+                    await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guildid = $2;",
+                                               member.id,
+                                               member.guild.id)) + 1
                 if str(warn_num) in list(punishment_data.keys()):
                     await cog.punish(member, warn_num, punishment_data[str(warn_num)])
-               
+
                 elif warn_num > int(highest_punishment_value):
                     await cog.punish(member, warn_num, punishment_data[str(highest_punishment_value)])
 
@@ -133,20 +143,13 @@ class Filter(commands.Cog):
                 msg = ":bangbang: Unable to load the Warn cog please contact a bot maintainer."
                 # TODO: log properly
                 await self.bot.discord_logger.custom_log("modlogs", message.guild, msg)
-                      
 
     async def check_staff_filter(self, message: discord.Message) -> bool:
         """Checks for filter bypass for staff"""
         is_staff = await checks.nondeco_is_staff_or_perms(message, self.bot.db, "Mod", manage_message=True)
-        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1", message.guild.id)
+        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1",
+                                               message.guild.id)
         return is_staff and bypass_on
-
-    def char_str_replace(self, dictionary: dict, input_string: str) -> str:
-        """Replaces character in a dictionary"""
-        for k, v in dictionary.items():
-            input_string = input_string.replace(k, v)
-
-        return input_string
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -167,12 +170,47 @@ class Filter(commands.Cog):
         if filtered_words is None:
             return
         matches = []
-        no_whitespace_message = re.sub(r"[^0-9a-zA-Z]", "", message.content)
-        msg = message.content
+        msg = re.sub(r"[^0-9a-zA-Z ]", "", message.content)
         for word_tup in filtered_words:
-            res = re.search(word_tup[0], no_whitespace_message, re.I)
-            if res:
-                matches.append((res, word_tup[1]))
+            word = word_tup[0]
+            if len(word) < 5:
+                spaced_res = re.search(" ".join(word), msg, re.I)
+                no_white_space = re.sub(r" ", "", msg)
+                res = re.search(word_tup[0], no_white_space, re.I)
+                if spaced_res:
+                    w_start, w_end = spaced_res.span(0)
+                    beginning_isolated = False
+                    ending_isolated = False
+                    if w_start == 0 and msg[w_start + 1] == " ":
+                        beginning_isolated = True
+                    elif msg[w_start + 1] == " " and msg[w_start - 1] == " ":
+                        beginning_isolated = True
+
+                    if w_end == len(msg):
+                        ending_isolated = True
+                    elif msg[w_end] == " " or len(msg) == w_end:
+                        ending_isolated = True
+
+                    if not beginning_isolated or not ending_isolated:
+                        continue
+
+                    char_span = msg[w_start: w_end]
+                    ratio = fuzz.ratio(word, char_span)
+                    partial_ratio = fuzz.partial_ratio(word, char_span)
+                    if ratio >= 70 or partial_ratio >= 70:
+                        matches.append((spaced_res, word_tup[1]))
+
+                elif res:
+                    matches.append((res, word_tup[1]))
+
+                else:
+                    continue
+
+            else:
+                no_white_space = re.sub(r" ", "", msg)
+                res = re.search(word_tup[0], no_white_space, re.I)
+                if res:
+                    matches.append((res, word_tup[1]))
 
         if len(matches) == 0:
             return
