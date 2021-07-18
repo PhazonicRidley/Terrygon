@@ -99,8 +99,7 @@ def is_trusted_or_perms(**perms):
 
 def is_bot_owner():
     async def wrapper(ctx):
-        bot_owners = read_config("botOwners")
-        if ctx.author.id in bot_owners:
+        if await ctx.bot.is_owner(ctx.author):
             return True
         else:
             raise errors.botOwnerError()

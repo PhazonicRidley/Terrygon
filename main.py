@@ -77,7 +77,7 @@ class Terrygon(commands.Bot):
         super().__init__(command_prefix=_callable_prefix, description=read_config("description"), max_messages=10000,
                          help_command=help_cmd,
                          allowed_mentions=discord.AllowedMentions(everyone=False, users=True, roles=True),
-                         intents=discord.Intents().all())
+                         intents=discord.Intents().all(), owner_ids=read_config("botOwners"))
 
         try:
             self.db = self.loop.run_until_complete(create_pool())

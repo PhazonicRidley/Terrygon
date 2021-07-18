@@ -203,9 +203,6 @@ class Filter(commands.Cog):
                 elif res:
                     matches.append((res, word_tup[1]))
 
-                else:
-                    continue
-
             else:
                 no_white_space = re.sub(r" ", "", msg)
                 res = re.search(word_tup[0], no_white_space, re.I)

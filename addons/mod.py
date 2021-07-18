@@ -27,8 +27,8 @@ class Mod(commands.Cog):
                 return -1
             try:
                 query_output = await conn.fetchval(
-                        "SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
-                        member.guild.id)
+                    "SELECT userID FROM mutes WHERE userID = $1 AND guildID = $2", member.id,
+                    member.guild.id)
                 if muted_role in member.roles or query_output == member.id:
                     if mode == 'timed':
                         return 1
@@ -43,8 +43,6 @@ class Mod(commands.Cog):
             return -1
 
         return 0
-
-
 
     async def mute_prep(self, ctx, member, mode: str) -> int:
         """Sets up the mute commands"""
