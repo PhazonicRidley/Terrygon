@@ -132,7 +132,7 @@ class Filter(commands.Cog):
                 warn_num = int(
                     await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guildid = $2;",
                                                member.id,
-                                               member.guild.id)) + 1
+                                               member.guild.id))
                 if str(warn_num) in list(punishment_data.keys()):
                     await cog.punish(member, warn_num, punishment_data[str(warn_num)])
 
