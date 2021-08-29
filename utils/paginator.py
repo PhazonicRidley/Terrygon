@@ -43,7 +43,6 @@ class BasicEmbedMenu(menus.ListPageSource):
         else:
             embed = discord.Embed(color=discord.Color.greyple())
         embed.description = "\n".join(entries)
-        # embed.add_field(name="I wont change", value="UNTIL ITS OVERRRR!!!")
         embed.set_footer(text=f"Page {menu.current_page + 1} of {self.get_max_pages()}")
         return embed
 
@@ -55,7 +54,10 @@ class ReactDeletePages(menus.MenuPages):
     async def update(self, payload):
         if self._can_remove_reactions:
             if payload.event_type == 'REACTION_ADD':
-                await self.bot.http.remove_reaction(payload.channel_id, payload.message_id, payload.emoji, payload.member.id)
+
+                await self.bot.http.remove_reaction(
+                    payload.channel_id, payload.message_id, payload.emoji, payload.member.id)
+
             elif payload.event_type == 'REACTION_REMOVE':
                 return
         await super().update(payload)
@@ -64,3 +66,4 @@ class ReactDeletePages(menus.MenuPages):
         loop = self.bot.loop
         loop.create_task(self.message.delete())
         super().stop()
+

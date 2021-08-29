@@ -2,10 +2,8 @@
 Description=Terrygon discord bot
 
 [Service]
-#Type=simple
-#User=youruser
 WorkingDirectory=/path/to/bot
-ExecStart=/usr/bin/python3 /path/to/main.py
+ExecStart=/path/to/bot/virtualenv/bin/python /path/to/bot/main.py
 Restart=always
 
 [Install]

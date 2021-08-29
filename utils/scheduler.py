@@ -1,15 +1,7 @@
-from logging import NOTSET
-import os
-
 import discord
-from discord.ext import commands
 import asyncio
-import typing
 from datetime import datetime, timedelta
 from utils import errors
-from logzero import setup_logger
-
-console_logger = setup_logger(name="schedule_logs", logfile="logs/scheduler.log", maxBytes=100000)
 
 
 class TimedJob:
@@ -32,9 +24,6 @@ class Scheduler:
             # 'block': self.time_unblock,
             'reminder': self.remind
         }
-
-        if not os.path.exists("logs.log"):
-            open("logs/scheduler.log", "w").write("")
 
     async def add_timed_job(self, type: str, creation: datetime, expiration: timedelta, **kwargs):
         """Function to add a timed job to the database"""
@@ -95,9 +84,9 @@ class Scheduler:
         if action_record is None:
             return None
 
-        guild = self.bot.get_guild(action_record['guildid'])
-        author = guild.get_member(action_record['authorid'])
-        user = guild.get_member(action_record['userid'])
+        guild = self.bot.get_guild(action_record['guild_id'])
+        author = guild.get_member(action_record['author_id'])
+        user = guild.get_member(action_record['user_id'])
         if guild is None:
             # properly log later THIS SHOULD TRIGGER ALMOST NEVER
             await self.bot.db.execute(f"DELETE FROM {table} WHERE id = $1", action_id)
@@ -105,15 +94,15 @@ class Scheduler:
 
         if user is None:
             try:
-                user = await self.bot.fetch_user(action_record['userid'])
+                user = await self.bot.fetch_user(action_record['user_id'])
             except discord.NotFound:
-                user = action_record['userid']
+                user = action_record['user_id']
 
         if author is None:
             try:
-                author = await self.bot.fetch_user(action_record['authorid'])
+                author = await self.bot.fetch_user(action_record['author_id'])
             except discord.NotFound:
-                author = action_record['authorid']
+                author = action_record['author_id']
 
         return guild, author, user
 
@@ -127,13 +116,9 @@ class Scheduler:
             return
 
         muted_role = guild.get_role(
-            await self.bot.db.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", guild.id))
+            await self.bot.db.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", guild.id))
         if muted_role is None:
-            try:
-                await guild.owner.send("Unable to unmute a timed mute, muted role is not set.")
-            except discord.Forbidden:
-                pass
-            return
+            return await self.bot.terrygon_logger.custom_log("mod_logs", guild, f":warning: **Muted role could not be found !** Could not unmute user.")
 
         await self.bot.db.execute("DELETE FROM mutes WHERE id = $1", mute_id)
         if isinstance(user, discord.Member):
@@ -152,8 +137,8 @@ class Scheduler:
                 pass
 
         try:
-            await self.bot.discord_logger.expiration_mod_logs('mute', guild, author, user)
-        except errors.loggingError:
+            await self.bot.terrygon_logger.expiration_mod_logs('mute', guild, author, user)
+        except errors.LoggingError:
             pass
 
     async def time_unban(self, **kwargs):
@@ -165,7 +150,7 @@ class Scheduler:
         else:
             return
 
-        await self.bot.db.execute("DELETE FROM bans WHERE userid = $1 AND guildid = $2", user.id, guild.id)
+        await self.bot.db.execute("DELETE FROM bans WHERE user_id = $1 AND guild_id = $2", user.id, guild.id)
         if isinstance(user, discord.User):
             try:
                 await guild.unban(user, reason="Timeban expired")
@@ -173,8 +158,8 @@ class Scheduler:
                 pass
 
         try:
-            await self.bot.discord_logger.expiration_mod_logs('ban', guild, author, user)
-        except errors.loggingError:
+            await self.bot.terrygon_logger.expiration_mod_logs('ban', guild, author, user)
+        except errors.LoggingError:
             pass
 
     async def remind(self, **reminder):

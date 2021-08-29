@@ -1,25 +1,20 @@
-import asyncio
 from time import strftime
-
 import discord
-import yaml
-from discord.ext import commands, flags
+import webcolors
+from discord.ext import commands
 import re
-
-from main import read_config
+import string
+from terrygon import read_config
 from utils import checks, common
 from datetime import datetime, timedelta
 import typing
 import collections
-from logzero import setup_logger
-
-misccmdlogger = setup_logger(logfile="logs/misc.log", maxBytes=1000000)
 
 
 class Reminder:
 
-    def __init__(self, id, reminder, time_stamp):
-        self.id = id
+    def __init__(self, reminder_id, reminder, time_stamp):
+        self.id = reminder_id
         self.reminder = reminder
         self.time_stamp = time_stamp
 
@@ -28,12 +23,12 @@ class Misc(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.curActivity = discord.Game(read_config("activity"))
+        self.curActivity = discord.Game(read_config("info", "activity"))
         self.curStatus = discord.Status.online
 
     @commands.guild_only()
     @commands.command(aliases=['mc'])
-    async def membercount(self, ctx):
+    async def membercount(self, ctx: commands.Context):
         """Prints member count"""
         bots = 0
         for member in ctx.guild.members:
@@ -44,7 +39,7 @@ class Misc(commands.Cog):
 
     @commands.guild_only()
     @commands.command(aliases=['currentperms'])
-    async def currentpermissions(self, ctx, item: typing.Union[discord.Member, discord.Role] = None):
+    async def currentpermissions(self, ctx: commands.Context, item: typing.Union[discord.Member, discord.Role] = None):
         """Lists a user's or a role's current permissions"""
         if item is None:
             item = ctx.author
@@ -69,12 +64,12 @@ class Misc(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def ping(self, ctx):
+    async def ping(self, ctx: commands.Context):
         """Pong!"""
         return await ctx.send(f":ping_pong:! Pong! Response time: {round(self.bot.latency * 1000, 2)} ms")
 
     @commands.command(aliases=['ui', 'onion'])
-    async def userinfo(self, ctx, member: typing.Union[discord.Member, int, str] = None):
+    async def userinfo(self, ctx: commands.Context, member: typing.Union[discord.Member, int, str] = None):
         """Prints userinfo on a member"""
         in_server = None
         if member is None:
@@ -96,7 +91,7 @@ class Misc(commands.Cog):
             embed = discord.Embed(title=f'**Userinfo for {user.name}#{str(user.discriminator)}**',
                                   color=user.color.value)
             embed.description = f"""**User's ID:** {str(user.id)} \n **Join date:** {str(user.joined_at)} \n**Created on** {str(user.created_at)}\n **Current Status:** {str(user.status).upper() if str(user.status).lower() == "dnd" else str(user.status).title()}\n **User Activity:**: {str(user.activity)} \n **Default Profile Picture:** {str(user.default_avatar).title()}\n **Current Display Name:** {user.display_name}\n**Nitro Boost Date:** {str(user.premium_since)}\n **Current Top Role:** {str(user.top_role)}\n **Bot** {user.bot}\n **Color:** {str(hex(user.color.value)[2:]).zfill(6)}"""
-            embed.set_thumbnail(url=user.avatar_url)
+            embed.set_thumbnail(url=user.avatar.url)
             await ctx.send(embed=embed)
 
         elif not in_server:
@@ -105,14 +100,15 @@ class Misc(commands.Cog):
             except discord.NotFound:
                 ban = None
 
-            embed = discord.Embed(title=f'**Userinfo for {user.name}#{str(user.discriminator)}**', color=common.gen_color(user.id))
+            embed = discord.Embed(title=f'**Userinfo for {user.name}#{str(user.discriminator)}**',
+                                  color=common.gen_color(user.id))
             embed.description = f"**User's ID:** {str(user.id)} \n **Default Profile Picture:** {str(user.default_avatar)} \n  **Created on:** {str(user.created_at)}\n **Bot:** {user.bot}\n {f'**Banned, reason:** {ban.reason}' if ban is not None else ''}"
             embed.set_footer(text=f'{user.name}#{user.discriminator} is not in your server.')
-            embed.set_thumbnail(url=user.avatar_url)
+            embed.set_thumbnail(url=user.avatar.url)
             await ctx.send(embed=embed)
 
     @commands.command(aliases=['avi'])
-    async def avatar(self, ctx, member: typing.Union[discord.Member, int, str] = None):
+    async def avatar(self, ctx: commands.Context, member: typing.Union[discord.Member, int, str] = None):
         """Gets a user's avatar"""
         in_server = None
         if member is None:
@@ -133,22 +129,22 @@ class Misc(commands.Cog):
 
         embed = discord.Embed(title=f"Avatar for {user.name}#{user.discriminator}",
                               color=user.color.value if in_server else common.gen_color(user.id))
-        embed.set_image(url=user.avatar_url_as(static_format='png'))
+        embed.set_image(url=user.avatar.url)
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def about(self, ctx):
+    async def about(self, ctx: commands.Context):
         """Info about the bot"""
         await ctx.send("https://gitlab.com/PhazonicRidley/terrygon")
 
     @checks.is_bot_owner()
     @commands.command()
-    async def invite(self, ctx):
+    async def invite(self, ctx: commands.Context):
         """DMs you a bot invite."""
         await ctx.author.send(f"https://discord.com/api/oauth2/authorize?client_id={ctx.me.id}&permissions=8&scope=bot")
 
     @commands.command(aliases=['spoiler'])
-    async def spoil(self, ctx):
+    async def spoil(self, ctx: commands.Context):
         """Returns image spoilered"""
         message = ctx.message
         msg_content = message.content[len(ctx.prefix) + len(ctx.command.name) + 1:]
@@ -173,18 +169,18 @@ class Misc(commands.Cog):
 
     @commands.guild_only()
     @commands.command(aliases=['serverinfo', 'server'])
-    async def guildinfo(self, ctx):
+    async def guild_info(self, ctx: commands.Context):
         """Posts guild info"""
         embed = discord.Embed(title=f"**Server info for: {ctx.guild.name}**", colour=common.gen_color(ctx.guild.id))
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon_url)
 
         approval_system = "enabled" if await self.bot.db.fetchval(
-            "SELECT approvalsystem FROM guild_settings WHERE guildid = $1", ctx.guild.id) else "disabled"
+            "SELECT approval_system FROM guild_settings WHERE guild_id = $1", ctx.guild.id) else "disabled"
 
         embed.add_field(
             name="**Stats**",
-            value=f":slight_smile: **__Number of emotes:__** {len(ctx.guild.emojis)}\n:soccer: **__Region__:** {str(ctx.guild.region).title()}\n:white_check_mark: **__Verification Level:__** {str(ctx.guild.verification_level).title()}\n{self.bot.discord_logger.emotes['creationdate']} **__Creation:__** {strftime(str(ctx.guild.created_at))}\n:eyes: **__Approval System:__** {approval_system.title()}\n{self.bot.discord_logger.emotes['id']} **__Guild ID:__** {ctx.guild.id}\n",
+            value=f":slight_smile: **__Number of emotes:__** {len(ctx.guild.emojis)}\n:soccer: **__Region__:** {str(ctx.guild.region).title()}\n:white_check_mark: **__Verification Level:__** {str(ctx.guild.verification_level).title()}\n{self.bot.terrygon_logger.emotes['creationdate']} **__Creation:__** {strftime(str(ctx.guild.created_at))}\n:eyes: **__Approval System:__** {approval_system.title()}\n{self.bot.terrygon_logger.emotes['id']} **__Guild ID:__** {ctx.guild.id}\n",
             inline=False
         )
         # adapted from https://gitlab.com/lightning-bot/Lightning/-/blob/v3/cogs/meta.py#L607
@@ -203,23 +199,23 @@ class Misc(commands.Cog):
         # get role info
         async with self.bot.db.acquire() as conn:
             mod_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT modrole FROM roles WHERE guildid = $1", ctx.guild.id))
+                await conn.fetchval("SELECT modrole FROM roles WHERE guild_id = $1", ctx.guild.id))
             mod_role = "No Mod role set" if mod_role is None else mod_role
 
             admin_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT adminrole FROM roles WHERE guildid = $1", ctx.guild.id))
+                await conn.fetchval("SELECT adminrole FROM roles WHERE guild_id = $1", ctx.guild.id))
             admin_role = "No Admin role set" if admin_role is None else admin_role
 
             owner_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT ownerrole FROM roles WHERE guildid = $1", ctx.guild.id))
+                await conn.fetchval("SELECT ownerrole FROM roles WHERE guild_id = $1", ctx.guild.id))
             owner_role = "No Owner role set" if owner_role is None else owner_role
 
             muted_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT mutedrole FROM roles WHERE guildid = $1", ctx.guild.id))
+                await conn.fetchval("SELECT mutedrole FROM roles WHERE guild_id = $1", ctx.guild.id))
             muted_role = "No Muted role set" if muted_role is None else muted_role
             if approval_system == 'enabled':
                 approval_role = ctx.guild.get_role(
-                    await conn.fetchval("SELECT approvedrole FROM roles WHERE guildid = $1", ctx.guild.id))
+                    await conn.fetchval("SELECT approvedrole FROM roles WHERE guild_id = $1", ctx.guild.id))
             else:
                 approval_role = "Approval System Disabled"
 
@@ -237,8 +233,8 @@ class Misc(commands.Cog):
 
     @checks.is_bot_owner()
     @commands.command()
-    async def activity(self, ctx, *, msg: str = None):
-        """Change the bot's playing/watching/listening to activity (Bot Owners only)"""
+    async def activity(self, ctx: commands.Context, *, msg: str = None):
+        """Change the bots playing/watching/listening to activity (Bot Owners only)"""
         to = False
         if msg is None:
             await self.bot.change_presence()
@@ -271,8 +267,8 @@ class Misc(commands.Cog):
 
     @checks.is_bot_owner()
     @commands.command()
-    async def status(self, ctx, new_status):
-        """Changes the bot's discord status, valid options are online, idle, dnd, or offline (Bot Owners only)"""
+    async def status(self, ctx: commands.Context, new_status):
+        """Changes the bots discord status, valid options are online, idle, dnd, or offline (Bot Owners only)"""
         new_status = new_status.lower()
         statuses = {
             'online': discord.Status.online,
@@ -290,19 +286,21 @@ class Misc(commands.Cog):
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command()
-    async def speak(self, ctx, channel: discord.TextChannel, *, message):
+    async def speak(self, ctx: commands.Context, channel: discord.TextChannel, *, message: str):
         """Make the bot speak"""
         await ctx.message.delete()
         await channel.send(message)
 
     @commands.group(invoke_without_command=True, aliases=['reminder'])
-    async def remind(self, ctx, time: str, *, text):
+    async def remind(self, ctx: commands.Context, time: str, *, text: str):
         """Reminds you about something in dms! (Please make sure you have your dms on if you are using this from a server), time is in dhms format ie `10 minutes` would be `10m`"""
         time_seconds = common.parse_time(time)
         if time_seconds == -1:
             return await ctx.send("Invalid time passed!")
 
-        if len(await self.bot.db.fetch("SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id'::text = $1", str(ctx.author.id))) + 1 > 10:
+        if len(await self.bot.db.fetch(
+                "SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id'::text = $1",
+                str(ctx.author.id))) + 1 > 10:
             return await ctx.send("You have too many reminders! you can delete some with remind del <number>")
 
         reminder_data = {
@@ -313,9 +311,8 @@ class Misc(commands.Cog):
         await self.bot.scheduler.add_timed_job('reminder', creation=datetime.utcnow(),
                                                expiration=timedelta(seconds=time_seconds), **reminder_data)
 
-    @flags.add_flag("--dm", '-d', action="store_true", default=False)
-    @remind.command(cls=flags.FlagCommand, name="list")
-    async def list_reminders(self, ctx, **flag_commands):
+    @remind.command(name="list")
+    async def list_reminders(self, ctx: commands.Context):
         """Lists your current reminders"""
 
         reminders = []
@@ -335,17 +332,14 @@ class Misc(commands.Cog):
                               inline=False)
 
         out.set_footer(text=f"{len(reminders)} total reminder(s).")
-        if flag_commands.get('dm'):
-            try:
-                await ctx.author.send(embed=out)
-                await ctx.message.add_reaction("\U0001f4ec")
-            except discord.Forbidden:
-                await ctx.send("I cannot dm you! please enable dms on this server!")
-        else:
-            await ctx.send(embed=out)
+        try:
+            await ctx.author.send(embed=out)
+            await ctx.message.add_reaction("\U0001f4ec")
+        except discord.Forbidden:
+            await ctx.send("I cannot dm you! please enable dms on this server!")
 
     @remind.command(name="deletereminder", aliases=['delreminder', 'delremind', 'deleteremind', 'del'])
-    async def delete_reminder(self, ctx, reminder_num: int):
+    async def delete_reminder(self, ctx: commands.Context, reminder_num: int):
         """Deletes a reminder"""
         records = await self.bot.db.fetch("SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id' = $1",
                                           str(ctx.author.id))
@@ -359,6 +353,39 @@ class Misc(commands.Cog):
             await ctx.send("Reminder deleted.")
         else:
             await ctx.send("No reminder by that number found.")
+
+    @commands.command(name="getcolor", aliases=['colorinfo'])
+    async def get_color(self, ctx: commands.Context, *, color_in: str):
+        """
+        Gets a color given from a hexadecimal code or RGB triple.
+        Hex - 6 characters long excluding the # (which is optional). Each character may go from 0 to F in hexadecimal.
+        RGB - 3 numbers separated by a comma
+        """
+        mode = 'hex'
+        hex_color_tuple = common.hex_to_color(color_in)
+        if not hex_color_tuple:
+            mode = 'rgb'
+
+        rgb_color = common.parse_rgb(color_in)
+        if not hex_color_tuple and not rgb_color:
+            return await ctx.send("Unable to parse your input. Command accepts hex or RGB.")
+
+        if mode == 'rgb':
+            if not rgb_color:
+                return await ctx.send("Unable to parse RGB.")
+            e = discord.Embed(title=f"Color RGB {', '.join(map(lambda c: str(c), rgb_color))}",
+                              color=discord.Color.from_rgb(*rgb_color), description=f"Color Hex: {webcolors.rgb_to_hex(rgb_color)}")
+            color_file = common.image_from_rgb(rgb_color)
+            e.set_image(url="attachment://color.png")
+            return await ctx.send(embed=e, file=color_file)
+
+        elif mode == "hex":
+            if not hex_color_tuple:
+                return ctx.send("Unable to parse hex code.")
+            e = discord.Embed(title=f"Color Hex {hex_color_tuple[1]}", color=hex_color_tuple[0], description=f"Color RGB {', '.join(map(lambda x: str(x), tuple(webcolors.hex_to_rgb(hex_color_tuple[1]))))}")
+            color_file = common.image_from_rgb(webcolors.hex_to_rgb(hex_color_tuple[1]))
+            e.set_image(url="attachment://color.png")
+            return await ctx.send(embed=e, file=color_file)
 
 
 def setup(bot):

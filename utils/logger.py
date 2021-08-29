@@ -1,18 +1,14 @@
 import typing
-from datetime import datetime, timedelta
+from datetime import datetime
 import discord
-from discord.utils import escape_mentions
-from logzero import logger as console_logger
-
-from addons import mod
 from utils import errors, common
 
 
-class Logger:
+class TerrygonLogger:
+    """Class to handle all log message dispatches"""
 
     def __init__(self, bot):
         self.bot = bot
-        # TODO temp emoji dict for logging, will convert to full sql database json thingy later
         self.emotes = {
             # mod actions
             'ban': "\U000026d4",
@@ -28,6 +24,8 @@ class Logger:
             "slowmode": "\U0001f551",
             "block": "\U0001f6ab",
             "unblock": "\U00002705",
+            "probate": ":no_entry_sign:",
+            "unprobate": ":o:",
             # utils
             "success": "\U00002705",
             "failure": "\U0001f4a2",
@@ -73,22 +71,22 @@ class Logger:
             "channeldewhitelist": ":no_mouth:"
         }
 
-    async def dispatch(self, database_channel, guild: discord.Guild, log_type, msg, embed: discord.Embed = None):
+    async def dispatch(self, database_channel: str, guild: discord.Guild, command_name: str, msg: str, embed: discord.Embed = None):
         """Sends the logging message off to the registered channel"""
-        if not database_channel in ("modlogs", "memberlogs", "messagelogs", "auditlogs", "filterlogs"):
-            raise errors.loggingError(log_type, database_channel)
+        if not database_channel in ("mod_logs", "member_logs", "message_logs", "filter_logs"):
+            raise errors.LoggingError(command_name, guild)
 
-        query = f"SELECT {database_channel} FROM log_channels WHERE guildID = $1"
+        query = f"SELECT {database_channel} FROM channels WHERE guild_id = $1"
         async with self.bot.db.acquire() as conn:
 
             channel_id = await conn.fetchval(query, guild.id)
             if channel_id is None:
-                return
+                raise errors.LoggingError(command_name, guild)
 
             else:
                 log_channel = self.bot.get_channel(channel_id)
                 if log_channel is None:
-                    console_logger.error("Did not parse asyncpg record object properly.")
+                    self.bot.error_log.error("Did not parse asyncpg record object properly.")
                 else:
                     await log_channel.send(msg)
                     if embed:
@@ -99,9 +97,10 @@ class Logger:
                        reason=None, **kwargs):
         """Logs bans, kicks, mutes, unmutes, warns, and other moderation actions in the mod logs channel"""
 
+        # TODO: rewrite this entire function, separate it out.
         # logs bans and soft bans
         if log_type == 'ban' or log_type == 'softban':
-            logging_msg = f"{self.emotes['ban']} **__User {log_type.title()}ned:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ned {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
+            logging_msg = f"{self.emotes['ban']} **__User {log_type.title()}ned:__** {author.mention} ({author.name}#{author.discriminator} | {author.id}) {log_type}ned {target.mention} ({target.name}#{target.discriminator})\n{self.emotes['id']} User ID: {target.id}"
             if reason is not None:
                 logging_msg += f"\n{self.emotes['reason']}Reason: {reason}"
 
@@ -109,53 +108,60 @@ class Logger:
         elif (
                 log_type == 'mute' or log_type == 'unmute' or log_type == 'approve' or log_type == 'unapprove') and isinstance(
             target, discord.Member):
-            logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}d:__** {author.mention} | {author.name}#{author.discriminator} {log_type}d {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
+            logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}d:__** {author.mention} ({author.name}#{author.discriminator} | {author.id}) {log_type}d {target.mention} ({target.name}#{target.discriminator})\n{self.emotes['id']} User ID: {target.id}"
             if reason is not None:
                 logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
-        elif log_type == 'unban':
-            logging_msg = f"{self.emotes['unban']} **__User {log_type.title()}ned:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ned {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
-            if reason is not None:
-                logging_msg += f"\n{self.emotes['reason']}Reason: {reason}"
-
         # logs lockdowns and channel clears
         elif isinstance(target, discord.TextChannel):
-            logging_msg = f"{self.emotes[log_type]} **__Channel {log_type.title()}ed:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ed {target.mention} | {target.name}\n{self.emotes['id']} Channel ID: {target.id}"
+            logging_msg = f"{self.emotes[log_type]} **__Channel {log_type.title()}ed:__** {author.mention} ({author.name}#{author.discriminator} | {author.id}) {log_type}ed {target.mention} ({target.name}\n{self.emotes['id']}) Channel ID: {target.id}"
             if log_type == 'clear':
                 logging_msg += f"\n{self.emotes['discriminator']} Number of messages cleared: {kwargs['num_messages']}"
 
             if reason is not None:
                 logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
-        # elif isinstance(target, discord.Role):
-        #  logging_msg = f"{self.emotes[log_type]} **__Role {log_type.title()}ed:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ed {escape_mentions(target.mention)} | {target.name}\n{self.emotes['id']} Role ID: {target.id}"
-        #  if reason is not None:
-        #     logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
-
         # catch for all member actions that don't have special past participles
         elif isinstance(target, discord.Member) or isinstance(target, discord.User):
-            logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}ed:__** {author.mention} | {author.name}#{author.discriminator} {log_type}ed {target.mention} | {target.name}#{target.discriminator}\n{self.emotes['id']} User ID: {target.id}"
+            logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}ed:__** {author.mention} ({author.name}#{author.discriminator} | {author.id}) {log_type}ed {target.mention} ({target.name}#{target.discriminator})\n{self.emotes['id']} User ID: {target.id}"
             if reason is not None:
                 logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
-        else:
-            raise errors.loggingError(log_type, "No ifs were triggered")
 
+        else:
+            return
         try:
-            await self.dispatch("modlogs", ctx.guild, log_type, logging_msg)
-        except errors.loggingError:
+            await self.dispatch("mod_logs", ctx.guild, log_type, logging_msg)
+        except errors.LoggingError:
             pass
 
-    async def on_join_block(self, member, channels: list, embed: discord.Embed = None):
-        logging_msg = f"{self.emotes['block']} **__User Auto-Blocked On Join:__**  {member.mention} | {member} has blocked from the following channels: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
+    async def probation_log(self, log_type: str, member: discord.Member, author: discord.Member, reason: str = None):
+        """Logs probates"""
+        log_type = log_type.lower()
+        if log_type == "probate":
+            msg = f"{self.emotes[log_type]} **__User Probated:__** {author.mention} ({author}) has probated {member.mention} ({member})\n{self.emotes['id']} {member.id}"
+            if reason:
+                msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
-        await self.dispatch('modlogs', member.guild, 'block', logging_msg, embed)
+        elif log_type == "unprobate":
+            msg = f"{self.emotes[log_type]} **__User Unprobated:__** {author.mention} ({author}) has unprobated {member.mention} ({member})\n{self.emotes['id']} {member.id}"
+
+        else:
+            # should not trigger, ever
+            raise errors.LoggingError(log_type, member.guild)
+
+        try:
+            await self.dispatch("mod_logs", author.guild, log_type, msg)
+        except errors.LoggingError:
+            pass
+
+    async def on_join_block(self, member: discord.Member, channels: list, embed: discord.Embed = None):
+        logging_msg = f"{self.emotes['block']} **__User Auto-Blocked On Join:__**  {member.mention} ({member}) has blocked from the following channels: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
+        await self.dispatch('mod_logs', member.guild, 'block', logging_msg, embed)
 
     async def unblock_all_log(self, member, author, channels: list):
-        logging_msg = f"{self.emotes['unblock']} **__User Unblocked Fully:__** {author.mention} has removed all blocks on {member.mention} | {member}. Blocked channels were: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
+        logging_msg = f"{self.emotes['unblock']} **__User Unblocked Fully:__** {author.mention} ({author} | {author.id}) has removed all blocks on {member.mention} ({member}). Blocked channels were: `{', '.join(channels)}`\n{self.emotes['id']} User ID: {member.id}"
+        await self.dispatch('mod_logs', member.guild, 'unblock', logging_msg)
 
-        await self.dispatch('modlogs', member.guild, 'unblock', logging_msg)
-
-    # TODO add timed functionality
     async def channel_block(self, log_type: str, member: discord.Member, author: discord.Member,
                             channel: typing.Union[discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel],
                             block_list: typing.List[str], reason: str = None):
@@ -166,80 +172,83 @@ class Logger:
         else:
             channel_msg = f"{channel.mention if isinstance(channel, discord.TextChannel) else channel.name}"
 
-        logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}ed:__** {author.mention} has {log_type}ed {member.mention} | {member} from being able to `{'`, `'.join(block_list)}` in {channel_msg}\n{self.emotes['id']} User ID: {member.id}"
+        logging_msg = f"{self.emotes[log_type]} **__User {log_type.title()}ed:__** {author.mention} ({author} | {author.id}) has {log_type}ed {member.mention} ({member}) from being able to `{'`, `'.join(block_list)}` in {channel_msg}\n{self.emotes['id']} User ID: {member.id}"
         if reason:
             logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
         elif not reason and log_type == 'block':
-            logging_msg += "\nNOTE: It is reccomended to add a reason to blocks with `-r [reason]...` the -r flag goes at the end of the command, everything that follows it is apart of the reason."
+            logging_msg += "\nNOTE: It is recommended to add a reason to blocks with `-r [reason]...` the -r flag goes at the end of the command, everything that follows it is apart of the reason."
 
-        await self.dispatch("modlogs", author.guild, log_type, logging_msg)
+        await self.dispatch("mod_logs", author.guild, log_type, logging_msg)
 
     async def warn_clear(self, log_type, member: typing.Union[discord.Member, discord.User], author, warn=None):
         """Logs the deletion of user warns."""
         if warn is None:
-            logging_msg = f"{self.emotes['clear']} **__Cleared Warns__** {member.mention} | {member}#{member.discriminator} had their warns cleared by {author.mention} | {author.name}#{author.discriminator}\n{self.emotes['id']} User ID: {member.id}"
+            logging_msg = f"{self.emotes['clear']} **__Cleared Warns__** {member.mention} ({member}) had their warns cleared by {author.mention} ({author} | {author.id})\n{self.emotes['id']} User ID: {member.id}"
             embed = None
         else:
-            logging_msg = f"{self.emotes['clear']} **__Cleared Warn__** {member.mention} | {member.name}#{member.discriminator} had warnid {warn.id} removed by {author.mention} | {author.name}#{author.discriminator}\n{self.emotes['id']} User ID: {member.id}"
+            logging_msg = f"{self.emotes['clear']} **__Cleared Warn__** {member.mention} ({member}) had warn id {warn.id} removed by {author.mention} ({author} | {author.id})\n{self.emotes['id']} User ID: {member.id}"
             embed = discord.Embed(color=0xe6ff33)
             embed.set_author(name=f"{member}", icon_url=member.avatar_url)
             embed.add_field(name=f"\n\n{warn.time_stamp}",
                             value=f"{warn.reason if warn.reason is not None else 'No reason given for warn'}\n Issuer: {self.bot.get_user(warn.author_id) if self.bot.get_user(warn.author_id) is not None else self.bot.fetch_user(warn.author_id)}")
         try:
-            await self.dispatch('modlogs', author.guild, log_type, logging_msg, embed)
-        except errors.loggingError:
+            await self.dispatch('mod_logs', author.guild, log_type, logging_msg, embed)
+        except errors.LoggingError:
             pass
 
     async def slowmode_log(self, channel: discord.TextChannel, time: str, author: discord.Member, reason=None):
         """Slowmode logging"""
-        logging_msg = f"{self.emotes['slowmode']} **__Channel Slowed:__** {author.mention} | {channel} added a {time} delay to {channel.mention}\n{self.emotes['id']} Channel ID: {channel.id}"
+        if time == 0:
+            logging_msg = f"{self.emotes['slowmode']} **__Channel Unslowed:__** {author.mention} ({channel}) removed the delay on {channel.mention}\n{self.emotes['id']} Channel ID: {channel.id}"
+        else:
+            logging_msg = f"{self.emotes['slowmode']} **__Channel Slowed:__** {author.mention} ({channel}) added a {time} delay to {channel.mention}\n{self.emotes['id']} Channel ID: {channel.id}"
         if reason:
             logging_msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
-        await self.dispatch("modlogs", author.guild, 'slowmode', logging_msg)
+        await self.dispatch("mod_logs", author.guild, 'slowmode', logging_msg)
 
     async def auto_mod(self, logtype, member: discord.Member, reason=None):
         """auto moderation logging, WIP"""
-        msg = f"{self.emotes[logtype]} **__Auto-{logtype}:__** {member.mention} | {member.name}#{member.discriminator}\n{self.emotes['id']} User ID: {member.id}"
+        msg = f"{self.emotes[logtype]} **__Auto-{logtype}:__** {member.mention} ({member.name}#{member.discriminator})\n{self.emotes['id']} User ID: {member.id}"
         if reason:
             msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
         try:
-            await self.dispatch('modlogs', member.guild, logtype, msg)
-        except errors.loggingError:
+            await self.dispatch('mod_logs', member.guild, logtype, msg)
+        except errors.LoggingError:
             pass
 
     async def softban_join(self, member: discord.Member, author: discord.Member, reason=None):
         """Softban logging"""
-        logging_msg = f"{self.emotes['failure']} **__Attempted Join:__** {member.mention} | {member.name}#{member.discriminator} tried to join {member.guild.name} but is softbanned by {author}\n{self.emotes['id']} User ID: {member.id}"
+        logging_msg = f"{self.emotes['failure']} **__Attempted Join:__** {member.mention} ({member.name}#{member.discriminator}) tried to join {member.guild.name} but is softbanned by {author} ({author.id})\n{self.emotes['id']} User ID: {member.id}"
         if reason:
             logging_msg += f"\n{self.emotes['reason']} Reason: `{reason}.`"
 
         try:
-            await self.dispatch("modlogs", member.guild, "ban", logging_msg)
-        except errors.loggingError:
+            await self.dispatch("mod_logs", member.guild, "ban", logging_msg)
+        except errors.LoggingError:
             pass
 
     async def user_update(self, logtype, user: discord.User, user_before, user_after):
         """User updates, agnostic to servers"""
-        logging_msg = f"{self.emotes[logtype]} **__User Update:__** {user.mention} has updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{user_before}` -> `{user_after}`"
+        logging_msg = f"{self.emotes[logtype]} **__User Update:__** {user} updated their {logtype}\n{self.emotes['id']} User ID: {user.id}\n:pencil: `{user_before}` -> `{user_after}`"
         for g in self.bot.guilds:
             if user in g.members:
                 channel = g.get_channel(
-                    await self.bot.db.fetchval("SELECT memberlogs FROM log_channels WHERE guildid = $1", g.id))
+                    await self.bot.db.fetchval("SELECT member_logs FROM channels WHERE guild_id = $1", g.id))
                 if not channel:
                     continue
                 else:
                     await channel.send(logging_msg)
 
     async def member_update(self, logtype, member, before_change, after_change):
-        logging_msg = f"{self.emotes[logtype]} **__Member Update:__** {member.name}#{member.discriminator}'s {logtype} was updated\n{self.emotes['id']} User ID: {member.id}\n{self.emotes['username']} Change: `{before_change}` -> `{after_change}`"
-
+        logging_msg = f"{self.emotes[logtype]} **__Member Update:__** {member} had their {logtype} updated\n{self.emotes['id']} User ID: {member.id}\n{self.emotes['username']} Change: `{before_change}` -> `{after_change}`"
         try:
-            await self.dispatch("memberlogs", member.guild, logtype, logging_msg)
-        except errors.loggingError:
+            await self.dispatch("member_logs", member.guild, logtype, logging_msg)
+        except errors.LoggingError:
             pass
 
+    # TODO: change it so if the role string gets too big truncate
     async def role_update(self, log_type, before: discord.Member, after: discord.Member):
         roles_before = before.roles[1:]
         roles_after = after.roles[1:]
@@ -264,49 +273,49 @@ class Logger:
         logging_msg = f"{self.emotes['info']} **__Role Update:__** {after.name}#{after.discriminator} had their roles updated!\n{self.emotes['id']} User ID: {after.id}\n{self.emotes[log_type]} {log_type.title()}: " + role_string
 
         try:
-            await self.dispatch("memberlogs", after.guild, log_type, logging_msg)
-        except errors.loggingError:
+            await self.dispatch("member_logs", after.guild, log_type, logging_msg)
+        except errors.LoggingError:
             pass
 
     async def join_leave_logs(self, log_type: str, member: discord.Member):
         """logs members joining and leaving"""
         logging_msg = f"{self.emotes[log_type]} **__Member " + (
-            "Left:__**" if log_type == 'left' else f"{log_type.title()}ed:__**") + f" {member.mention} | {member.name}#{member.discriminator}" + f"\n{self.emotes['id']} User ID: {member.id}\n{self.emotes['creationdate']} Account Creation: {member.created_at}"
+            "Left:__**" if log_type == 'left' else f"{log_type.title()}ed:__**") + f" {member.mention} ({member})" + f"\n{self.emotes['id']} User ID: {member.id}\n{self.emotes['creationdate']} Account Creation: {member.created_at}"
 
         try:
-            await self.dispatch("memberlogs", member.guild, log_type, logging_msg)
-        except errors.loggingError:
+            await self.dispatch("member_logs", member.guild, log_type, logging_msg)
+        except errors.LoggingError:
             pass
 
-    async def message_edit_logs(self, log_type: str, before: discord.Message, after: discord.Message) -> str:
+    async def message_edit_logs(self, log_type: str, before: discord.Message, after: discord.Message):
         """Logs a message edit"""
-        logging_msg = f"{self.emotes[log_type]} **__Message Edited:__** {after.author.name}#{after.author.discriminator} edited their message in {after.channel.mention}\n{self.emotes['id']} User ID: {after.author.id}\n{self.emotes['message']}Before: `{before.content}` -> After: `{after.content}`\n:link: Link: https://discordapp.com/channels/{after.guild.id}/{after.channel.id}/{after.id}"
+        logging_msg = f"{self.emotes[log_type]} **__Message Edited:__** {after.author} edited their message in {after.channel.mention}\n{self.emotes['id']} User ID: {after.author.id}\n{self.emotes['message']}Before: `{before.content}` -> After: `{after.content}`\n:link: Link: https://discordapp.com/channels/{after.guild.id}/{after.channel.id}/{after.id}"
 
         try:
-            await self.dispatch("messagelogs", after.guild, log_type, logging_msg)
-        except errors.loggingError:
+            await self.dispatch("message_logs", after.guild, log_type, logging_msg)
+        except errors.LoggingError:
             pass
 
     async def message_deletion(self, log_type: str, message: discord.Message):
         logging_msg = f"{self.emotes[log_type]} **__Message Deleted:__** {message.author.name}#{message.author.discriminator} deleted their message in {message.channel.mention}\n{self.emotes['id']} User ID: {message.author.id}\n{self.emotes['message']} Content: ```{message.content}```"
 
         try:
-            await self.dispatch("messagelogs", message.guild, log_type, logging_msg)
-        except errors.loggingError:
+            await self.dispatch("message_logs", message.guild, log_type, logging_msg)
+        except errors.LoggingError:
             pass
 
-    async def message_pinned(self, log_type: str, pinner, message: discord.Message):
-        logging_msg = f"{self.emotes[log_type]} **__Message {log_type.title()}ned__** {pinner} {log_type}ned a message to {message.channel.mention}\n{self.emotes['id']} User ID: {message.author.id}\n{self.emotes['message']} Content: ```{message.content}```\n:link: Link: https://discordapp.com/channels/{message.guild.id}/{message.channel.id}/{message.id}"
+    async def message_pinned(self, log_type: str, member, message: discord.Message):
+        logging_msg = f"{self.emotes[log_type]} **__Message {log_type.title()}ned__** {member} {log_type}ned a message to {message.channel.mention}\n{self.emotes['id']} User ID: {message.author.id}\n{self.emotes['message']} Content: ```{message.content}```\n:link: Link: https://discordapp.com/channels/{message.guild.id}/{message.channel.id}/{message.id}"
 
         try:
-            await self.dispatch("messagelogs", message.guild, log_type, logging_msg)
-        except errors.loggingError:
+            await self.dispatch("message_logs", message.guild, log_type, logging_msg)
+        except errors.LoggingError:
             pass
 
     async def log_setup(self, log_type: str, action: str, member: discord.Member,
                         item: typing.Union[discord.TextChannel, discord.Role], db_item: str):
 
-        logging_msg = f"{self.emotes[log_type]} **__{log_type.title()} {action.title()}__** {member.name}#{member.discriminator} {log_type} {item.name if isinstance(item, discord.Role) else item.mention} to the {action}\n {self.emotes['id']} {action.title()} ID: {item.id}"
+        logging_msg = f"{self.emotes[log_type]} **__{log_type.title()} {action.title()}__** {member.name}#{member.discriminator} ({member.id}) {log_type} {item.name if isinstance(item, discord.Role) else item.mention} to the {action}\n {self.emotes['id']} {action.title()} ID: {item.id}"
 
         await self.dispatch(db_item, item.guild, log_type, logging_msg)
 
@@ -319,8 +328,8 @@ class Logger:
 
     async def approval_config(self, author: discord.Member, approval_channel: discord.TextChannel,
                               approval_role: discord.Role):
-        logging_msg = f"**__Approval System Configured:__** {author.mention} configured an approval system with {approval_channel.mention} as the gateway channel and {approval_role.name} as the role name.\n{self.emotes['id']} Channel ID: {approval_channel.id}\n{self.emotes['id']} Role ID: {approval_role.id}"
-        await self.dispatch('modlogs', approval_channel.guild, 'approval system', logging_msg)
+        logging_msg = f"**__Approval System Configured:__** {author.mention} ({author} | {author.id}) configured an approval system with {approval_channel.mention} as the gateway channel and {approval_role.name} as the role name.\n{self.emotes['id']} Channel ID: {approval_channel.id}\n{self.emotes['id']} Role ID: {approval_role.id}"
+        await self.dispatch('mod_logs', approval_channel.guild, 'approval system', logging_msg)
 
     async def approval_deletion(self, author: discord.Member, approval_channel: discord.TextChannel = None,
                                 approval_role: discord.Role = None):  # turtle i will find you and i will make you step on a lego :blobgun:
@@ -329,50 +338,73 @@ class Logger:
             channel_role_msg += f"Approval Role: `{approval_role.name}`"
         if approval_channel:
             channel_role_msg += f", Approval Channel: `{approval_channel.name}`"
-        logging_msg = f"**__Approval System Removed:__** {author.mention} has removed the approval system. {channel_role_msg}"
+        logging_msg = f"**__Approval System Removed:__** {author.mention} ({author} | {author.id}) has removed the approval system. {channel_role_msg}"
 
-        await self.dispatch('modlogs', author.guild, 'approval system', logging_msg)
-
-    # add audit log logging
+        await self.dispatch('mod_logs', author.guild, 'approval system', logging_msg)
 
     async def unsoftban_log(self, ctx, member):
-        logging_msg = f"{self.emotes['warn']} **__Unsoftban:__** {member.mention} | {member.name}#{member.discriminator}\n{self.emotes['id']} User ID: {member.id}"
+        logging_msg = f"{self.emotes['warn']} **__Unsoftban:__** {member.mention} ({member.name}#{member.discriminator})\n{self.emotes['id']} User ID: {member.id}"
 
         try:
-            await self.dispatch('modlogs', ctx.guild, 'unban', logging_msg)
-        except errors.loggingError:
+            await self.dispatch('mod_logs', ctx.guild, 'unban', logging_msg)
+        except errors.LoggingError:
             pass
 
     async def auto_mod_setup(self, author: discord.Member, action: str, **kwargs):
         """Sets up auto-mod logging"""
-        logging_msg = f"{self.emotes[action]} **__Auto-mod configured: {action.title()}__** {author.mention} has added an auto logging system for "
+        logging_msg = f"{self.emotes[action]} **__Auto-mod configured: {action.title()}__** {author.mention} ({author} | {author.id}) has added an auto logging system for "
         if "warn_num" in kwargs.keys():
             logging_msg += f"when a user gets {kwargs['warn_num']} warn(s)."
 
-        await self.dispatch('modlogs', author.guild, action, logging_msg)
+        try:
+            await self.dispatch('mod_logs', author.guild, action, logging_msg)
+        except errors.LoggingError:
+            pass
 
-    async def expiration_mod_logs(self, type: str, guild: discord.Guild, author: typing.Union[discord.Member, discord.User, int], user: typing.Union[discord.Member, discord.User, int]):
+    async def expiration_mod_logs(self, type: str, guild: discord.Guild, author: discord.Member, user: discord.Member):
         """Logs a timed mod action removal on a user"""
-        if isinstance(user, (discord.Member, discord.User)):
-            msg = f"{self.emotes['un' + type]} **{type.title()} Expired:** {user.mention}'s {type} has expired.\n{self.emotes['id']} ID: {user.id}\n:police_car: Moderator: {author}"
-        else:
-            msg = f"{self.emotes['un' + type]} **{type.title()} Expired:** User ID {user} {type} has expired.\n:police_car: Moderator: {author}"
+        msg = f"{self.emotes['un' + type]} **{type.title()} Expired:** {user.mention} ({user})'s {type} has expired.\n{self.emotes['id']} ID: {user.id}\n:police_car: Moderator: {author} ({author.id})"
 
-
-        await self.dispatch('modlogs', guild, type, msg)
+        try:
+            await self.dispatch('mod_logs', guild, type, msg)
+        except errors.LoggingError:
+            pass
 
     async def timed_mod_logs(self, log_type: str, user: discord.Member, author: discord.Member, time: datetime,
                              reason: str = None):
         """Logs timed moderation actions"""
-        msg = f"""{self.emotes[log_type]} **__Timed {log_type.title()}:__** {author.mention} has given {user.mention} a timed {log_type}. (All dates and times are in UTC) \n{self.emotes['creationdate']} Expiration: `{time.strftime("%Y-%m -%d %H:%M:%S")}`\n{self.emotes['id']} ID: {user.id}"""
+        msg = f"""{self.emotes[log_type]} **__Timed {log_type.title()}:__** {author.mention} ({author} | {author.id}) has given {user.mention} a timed {log_type}. (All dates and times are in UTC) \n{self.emotes['creationdate']} Expiration: `{time.strftime("%Y-%m -%d %H:%M:%S")}`\n{self.emotes['id']} ID: {user.id}"""
 
         if reason:
             msg += f"\n{self.emotes['reason']} Reason: {reason}"
 
-        await self.dispatch('modlogs', author.guild, log_type, msg)
+        await self.dispatch('mod_logs', author.guild, log_type, msg)
+
+    async def unban_log(self, user: discord.Member, source: discord.Member):
+        """Logs an unban"""
+        msg = f"{self.emotes['warn']} **__User Unbanned:__** {source} ({source.id}) has unbanned {user.mention} ({user}).\n{self.emotes['id']} User ID: {user.id}"
+        try:
+            await self.dispatch('mod_logs', source.guild, 'unban', msg)
+        except errors.LoggingError:
+            pass
+
+    async def probation_settings(self, log_type: str, moderator: discord.Member, channel: discord.TextChannel = None, role: discord.Role = None):
+        """Logs probation set ups"""
+        if log_type.lower() == "set":
+            msg = f"**__Probation Configured:__** {moderator.mention} ({moderator} | {moderator.id}) configured the probation system.\nChannel: {channel.mention} (ID: {channel.id})\nRoles: {role.name} (ID: {role.id})"
+        elif log_type.lower() == "unset":
+            msg = f"**__Probation Unset:__** {moderator.mention} ({moderator} | {moderator.id}) unset probation settings."
+
+        else:
+            raise errors.LoggingError("probation " + log_type, moderator.guild)
+
+        try:
+            await self.dispatch('mod_logs', moderator.guild, log_type, msg)
+        except errors.LoggingError:
+            pass
 
     # Filter logs
-    async def word_filter_update(self, log_type, word, author, punishment=None):
+    async def word_filter_update(self, log_type: str, word: str, author: discord.Member, punishment: str=None):
         """Logs filter word additions and deletions"""
         log_type = log_type.lower()
 
@@ -387,9 +419,12 @@ class Logger:
         else:
             return
 
-        await self.dispatch('filterlogs', author.guild, log_type, msg)
+        try:
+            await self.dispatch('filter_logs', author.guild, log_type, msg)
+        except errors.LoggingError:
+            pass
 
-    async def channel_whitelist(self, log_type, channel, author):
+    async def channel_whitelist(self, log_type: str, channel: discord.TextChannel, author: discord.Member):
         """Logs channel whitelist or dewhitelist"""
         if log_type == "channelwhitelist":
             msg = f"{self.emotes[log_type]} **__Channel Whitelist:__** {author.mention} ({author} | {author.id}) whitelisted {channel.mention}\nID: {channel.id}"
@@ -401,17 +436,27 @@ class Logger:
         else:
             return
 
-        await self.dispatch('filterlogs', author.guild, log_type, msg)
+        try:
+            await self.dispatch('filter_logs', author.guild, log_type, msg)
+        except errors.LoggingError:
+            pass
 
-    async def filter_pop(self, member, highlighted_message, punishment):
+    async def filter_pop(self, member: discord.Member, highlighted_message: str, punishment: str):
         """Logs filter pops"""
         embed = discord.Embed(description=highlighted_message, color=common.gen_color(member.id))
         msg = f"{self.emotes['filterpop']} **__Filter Popped:__** {member.mention} ({member}) popped the filter\n{self.emotes['id']}User ID: {member.id}"
         if punishment != "notify":
             msg += f"\nPunishment: {punishment}"
 
-        await self.dispatch("filterlogs", member.guild, "filterpop", msg, embed=embed)
-    
-    async def custom_log(self, log_channel: str, guild: discord.Guild, msg: str, embed: discord.Embed=None):
+        try:
+            await self.dispatch("filter_logs", member.guild, "filterpop", msg, embed=embed)
+        except errors.LoggingError:
+            pass
+
+    async def custom_log(self, log_channel: str, guild: discord.Guild, msg: str, embed: discord.Embed = None):
         """Sends a custom log to any channel"""
-        await self.dispatch(log_channel, guild, log_channel, msg, embed)
+
+        try:
+            await self.dispatch(log_channel, guild, log_channel, msg, embed)
+        except errors.LoggingError:
+            pass

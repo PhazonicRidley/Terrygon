@@ -1,0 +1,34 @@
+# config file for bot
+
+[credentials]
+token = "your token here"
+db = "postgres://username:password@host:port"
+
+[info]
+default_prefix = "terrygon!"
+description = "A cool and epic discord bot that does things."
+activity = "Fumos are the future."
+modules = [
+   # "approval",
+   # "setup",
+   # "botowner",
+   # "events",
+   # "mod",
+   # "misc",
+   # "warn",
+   # "block",
+   # "trusted",
+   # "qrgen",
+   # "memes",
+   # "toggleroles",
+   # "colors",
+   # "accountinfo",
+   #  "custom",
+   #  "filter"
+]
+
+[bot_management]
+# add channel and user ids as integers
+bot_error_channels = []
+bot_owners = []
+

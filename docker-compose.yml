@@ -5,7 +5,7 @@ services:
     container_name: postgres_db
     environment:
       POSTGRES_USER: terrygon
-      POSTGRES_PASSWORD: 
+      POSTGRES_PASSWORD: spacecore
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U terrygon"]
       interval: 10s
@@ -13,12 +13,12 @@ services:
       retries: 5
 
   terrygon:
-    build: utils
+    build: .
     container_name: terrygon
     volumes:
-      - ./logs:/logs
+      - ./data:/data
     depends_on:
       db:
         condition: service_healthy
 
-    restart: always
+    #restart: always

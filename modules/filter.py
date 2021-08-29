@@ -53,7 +53,7 @@ class Filter(commands.Cog):
         await self.bot.db.execute("INSERT INTO filtered_words (word, guild_id, punishment) VALUES ($1, $2, $3)", word,
                                   ctx.guild.id, punishment)
         await ctx.send("Word added to the filter")
-        await self.bot.discord_logger.word_filter_update("wordadd", word, ctx.author, punishment)
+        await self.bot.terrygon_logger.word_filter_update("wordadd", word, ctx.author, punishment)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_messages=True)
@@ -67,7 +67,7 @@ class Filter(commands.Cog):
 
         await self.bot.db.execute("DELETE FROM filtered_words WHERE id = $1", w_id)
         await ctx.send("Word removed from filter")
-        await self.bot.discord_logger.word_filter_update("worddelete", word, ctx.author)
+        await self.bot.terrygon_logger.word_filter_update("worddelete", word, ctx.author)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_messages=True)
@@ -84,7 +84,7 @@ class Filter(commands.Cog):
         await self.bot.db.execute("UPDATE filtered_words SET punishment = $1 WHERE word = $2 AND guild_id = $3",
                                   punishment, word, ctx.guild.id)
         await ctx.send("Word punishment updated.")
-        await self.bot.discord_logger.word_filter_update("wordupdate", word, ctx.author, punishment)
+        await self.bot.terrygon_logger.word_filter_update("wordupdate", word, ctx.author, punishment)
 
     @commands.guild_only()
     @word_filter.command(name="list")
@@ -116,7 +116,7 @@ class Filter(commands.Cog):
 
         elif punishment == "warn":
             await message.delete()
-            await self.bot.db.execute("INSERT INTO warns (userid, authorid, guildid, reason) VALUES ($1, $2, $3, $4)",
+            await self.bot.db.execute("INSERT INTO warns (user_id, author_id, guild_id, reason) VALUES ($1, $2, $3, $4)",
                                       member.id, self.bot.user.id, member.guild.id, "Filter Pop")
             try:
                 dm_msg = f"You have popped the filter on {member.guild}. " + "You have been warned because of this."
@@ -124,13 +124,13 @@ class Filter(commands.Cog):
             except discord.Forbidden:
                 pass
             punishment_data = await self.bot.db.fetchval(
-                "SELECT warn_punishments FROM guild_settings WHERE guildid = $1",
+                "SELECT warn_punishments FROM guild_settings WHERE guild_id = $1",
                 message.guild.id)
             cog = self.bot.get_cog("Warn")
             if punishment_data and cog:
                 highest_punishment_value = max(punishment_data.keys())
                 warn_num = int(
-                    await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guildid = $2;",
+                    await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guild_id = $2;",
                                                member.id,
                                                member.guild.id))
                 if str(warn_num) in list(punishment_data.keys()):
@@ -142,12 +142,12 @@ class Filter(commands.Cog):
             elif not cog:
                 msg = ":bangbang: Unable to load the Warn cog please contact a bot maintainer."
                 # TODO: log properly
-                await self.bot.discord_logger.custom_log("modlogs", message.guild, msg)
+                await self.bot.terrygon_logger.custom_log("modlogs", message.guild, msg)
 
     async def check_staff_filter(self, message: discord.Message) -> bool:
         """Checks for filter bypass for staff"""
         is_staff = await checks.nondeco_is_staff_or_perms(message, self.bot.db, "Mod", manage_message=True)
-        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1",
+        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guild_id = $1",
                                                message.guild.id)
         return is_staff and bypass_on
 
@@ -229,20 +229,20 @@ class Filter(commands.Cog):
             highest_punishment = 'notify'
 
         # log
-        await self.bot.discord_logger.filter_pop(message.author, highlighted_message, highest_punishment)
+        await self.bot.terrygon_logger.filter_pop(message.author, highlighted_message, highest_punishment)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @commands.command(name="staffbypass")
     async def staff_filter_bypass(self, ctx):
         """Toggles the staff whitelist for the filter"""
-        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guildid = $1",
+        bypass_on = await self.bot.db.fetchval("SELECT staff_filter FROM guild_settings WHERE guild_id = $1",
                                                ctx.guild.id)
         if bypass_on:
-            await self.bot.db.execute("UPDATE guild_settings SET staff_filter = false WHERE guildid = $1", ctx.guild.id)
+            await self.bot.db.execute("UPDATE guild_settings SET staff_filter = false WHERE guild_id = $1", ctx.guild.id)
             await ctx.send("Staff can no longer bypass the filter.")
         else:
-            await self.bot.db.execute("UPDATE guild_settings SET staff_filter = true WHERE guildid = $1", ctx.guild.id)
+            await self.bot.db.execute("UPDATE guild_settings SET staff_filter = true WHERE guild_id = $1", ctx.guild.id)
             await ctx.send("Staff can now bypass the filter.")
 
     # whitelisted channels funcs (add/remove)
@@ -269,7 +269,7 @@ class Filter(commands.Cog):
         await self.bot.db.execute("INSERT INTO whitelisted_channels (channel_id, guild_id) VALUES ($1, $2)", channel.id,
                                   ctx.guild.id)
         await ctx.send(f"{channel.mention} is now whitelisted")
-        await self.bot.discord_logger.channel_whitelist("channelwhitelist", channel, ctx.author)
+        await self.bot.terrygon_logger.channel_whitelist("channelwhitelist", channel, ctx.author)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Admin", manage_channels=True)
@@ -292,7 +292,7 @@ class Filter(commands.Cog):
         await self.bot.db.execute("DELETE FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2",
                                   channel_id, ctx.guild.id)
         await ctx.send(output)
-        await self.bot.discord_logger.channel_whitelist("channeldewhitelist", channel, ctx.author)
+        await self.bot.terrygon_logger.channel_whitelist("channeldewhitelist", channel, ctx.author)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_channels=True)
