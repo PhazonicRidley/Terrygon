@@ -15,6 +15,9 @@ def is_staff_or_perms(min_staff_role: str, **perms):
     """Checks if a user has permission to use a command"""
 
     async def wrapper(ctx):
+        if not ctx.guild:
+            return False
+
         if ctx.author == ctx.guild.owner:
             return True
 
@@ -49,6 +52,9 @@ def is_staff_or_perms(min_staff_role: str, **perms):
 
 # TODO: look into running checks as non decorators. If not possible, merge this and the deco together under one function.
 async def nondeco_is_staff_or_perms(target, db, min_staff_role, **perms) -> bool:
+    if not target or not target.guild:
+        return False
+
     # get global perms for the user
     if isinstance(target.author, discord.Member):
         permissions = target.author.guild_permissions
@@ -91,6 +97,9 @@ async def nondeco_is_staff_or_perms(target, db, min_staff_role, **perms) -> bool
 
 def is_trusted_or_perms(**perms):
     async def wrapper(ctx):
+        if not ctx.guild:
+            return False
+
         if await nondeco_is_staff_or_perms(ctx, ctx.bot.db, 'Mod', **perms):
             return True
 

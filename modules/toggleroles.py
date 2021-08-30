@@ -90,6 +90,9 @@ class ToggleRoles(commands.Cog):
                               role: typing.Union[discord.Role, str], *, description: str = None):
         """Adds a toggleable role"""
         keyword = keyword.lower()
+        if "," in keyword:
+            return await ctx.send("Cannot add a comma in your keyword.")
+
         if keyword in ("add", "remove", "del", "delete", "list", "info"):
             return await ctx.send("Cannot make a keyword this.")
         if await self_roles.check_existing_keyword_roles(ctx, 'toggle_roles', keyword) == -1:

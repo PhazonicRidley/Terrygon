@@ -3,6 +3,7 @@ logzero
 git+https://github.com/Rapptz/discord.py
 asyncpg
 python-Levenshtein
+fuzzywuzzy
 tabulate~=0.8.7
 pyyaml~=5.3.1
 pylast==3.1.0

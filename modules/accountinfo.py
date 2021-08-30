@@ -57,7 +57,7 @@ class AccountInfo(commands.Cog):
 
         account_data = await self.bot.db.fetch("SELECT name, content FROM accounts WHERE user_id = $1", user.id)
         embed = discord.Embed(color=common.gen_color(user.id))
-        embed.set_author(name=f"Accounts for {user}", icon_url=user.avatar_url)
+        embed.set_author(name=f"Accounts for {user}", icon_url=user.avatar.url)
         if not account_data:
             embed.description = "No accounts saved."
         else:
