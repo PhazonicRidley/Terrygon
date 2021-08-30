@@ -168,7 +168,7 @@ class Misc(commands.Cog):
             await ctx.send(f"{ctx.author}: ||{msg_content}||", files=file_list)
 
     @commands.guild_only()
-    @commands.command(aliases=['serverinfo', 'server'])
+    @commands.command(name="guildinfo", aliases=['serverinfo', 'server'])
     async def guild_info(self, ctx: commands.Context):
         """Posts guild info"""
         embed = discord.Embed(title=f"**Server info for: {ctx.guild.name}**", colour=common.gen_color(ctx.guild.id))
@@ -199,23 +199,23 @@ class Misc(commands.Cog):
         # get role info
         async with self.bot.db.acquire() as conn:
             mod_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT modrole FROM roles WHERE guild_id = $1", ctx.guild.id))
+                await conn.fetchval("SELECT mod_role FROM roles WHERE guild_id = $1", ctx.guild.id))
             mod_role = "No Mod role set" if mod_role is None else mod_role
 
             admin_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT adminrole FROM roles WHERE guild_id = $1", ctx.guild.id))
+                await conn.fetchval("SELECT admin_role FROM roles WHERE guild_id = $1", ctx.guild.id))
             admin_role = "No Admin role set" if admin_role is None else admin_role
 
             owner_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT ownerrole FROM roles WHERE guild_id = $1", ctx.guild.id))
+                await conn.fetchval("SELECT owner_role FROM roles WHERE guild_id = $1", ctx.guild.id))
             owner_role = "No Owner role set" if owner_role is None else owner_role
 
             muted_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT mutedrole FROM roles WHERE guild_id = $1", ctx.guild.id))
+                await conn.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", ctx.guild.id))
             muted_role = "No Muted role set" if muted_role is None else muted_role
             if approval_system == 'enabled':
                 approval_role = ctx.guild.get_role(
-                    await conn.fetchval("SELECT approvedrole FROM roles WHERE guild_id = $1", ctx.guild.id))
+                    await conn.fetchval("SELECT approved_role FROM roles WHERE guild_id = $1", ctx.guild.id))
             else:
                 approval_role = "Approval System Disabled"
 
