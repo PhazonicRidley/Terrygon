@@ -39,8 +39,8 @@ class Memes(commands.Cog):
         if exists:
             res, msg = await paginator.YesNoMenu("Meme exists, would you like to update it?").prompt(ctx)
             if res:
-                await self.bot.db.execute("UPDATE memes SET content = $1 WHERE guild_id = $2", meme_content,
-                                          ctx.guild.id)
+                await self.bot.db.execute("UPDATE memes SET content = $1 WHERE guild_id = $2 AND name = $3", meme_content,
+                                          ctx.guild.id, meme_name)
                 await msg.edit(content=f"Updated meme `{meme_name}`.")
             else:
                 await msg.edit(content="Did not update meme.")
