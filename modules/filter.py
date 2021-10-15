@@ -130,7 +130,7 @@ class Filter(commands.Cog):
             if punishment_data and cog:
                 highest_punishment_value = max(punishment_data.keys())
                 warn_num = int(
-                    await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE userid = $1 AND guild_id = $2;",
+                    await self.bot.db.fetchval("SELECT COUNT(warnID) FROM warns WHERE user_id = $1 AND guild_id = $2;",
                                                member.id,
                                                member.guild.id))
                 if str(warn_num) in list(punishment_data.keys()):
