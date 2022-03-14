@@ -13,5 +13,5 @@ aiohttp~=3.6.2
 git+https://github.com/Rapptz/discord-ext-menus
 webcolors~=1.3
 jishaku
-discord-flags
+alt-discord-flags
 toml

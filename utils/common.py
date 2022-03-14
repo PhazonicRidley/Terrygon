@@ -38,7 +38,7 @@ def parse_time(time_string: str) -> int:
 async def get_staff_roles(ctx: commands.Context) -> list:
     """Get's a guild's staff roles"""
     async with ctx.bot.db.acquire() as conn:
-        ids = await conn.fetchrow("SELECT modrole, adminrole, ownerrole FROM roles WHERE guildid = $1",
+        ids = await conn.fetchrow("SELECT mod_role, admin_role, owner_role FROM roles WHERE guild_id = $1",
                                   ctx.guild.id)
         staff_roles = []
         for id in ids:
