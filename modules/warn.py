@@ -428,5 +428,5 @@ class Warn(commands.Cog):
                 await ctx.send(f"{warn_nums} warns cleared from {member}")
 
 
-def setup(bot):
-    bot.add_cog(Warn(bot))
+async def setup(bot):
+    await bot.add_cog(Warn(bot))

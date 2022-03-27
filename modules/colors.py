@@ -273,5 +273,5 @@ class Colors(commands.Cog):
             await ctx.send("Color system disabled, please enable to use this command.")
 
 
-def setup(bot):
-    bot.add_cog(Colors(bot))
+async def setup(bot):
+    await bot.add_cog(Colors(bot))

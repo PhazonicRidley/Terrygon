@@ -50,3 +50,4 @@ class NoStaffRolesSaved(commands.CommandError):
 class UntrustedError(commands.CommandError):
     def __init__(self):
         super().__init__(message="User is not in trusted user list or not staff")
+

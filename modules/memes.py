@@ -138,5 +138,5 @@ class Memes(commands.Cog):
             f"🧊 I've chilled {member}. User is now {celsius}°C ({common.convert_c_to_f(celsius)}°F) ({celsius + 273}K)")
 
 
-def setup(bot):
-    bot.add_cog(Memes(bot))
+async def setup(bot):
+    await bot.add_cog(Memes(bot))

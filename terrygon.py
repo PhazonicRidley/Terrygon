@@ -82,7 +82,6 @@ class Terrygon(commands.AutoShardedBot):
         self.console_output_log = setup_logger(name="console_output_log", logfile="data/logs/console_output.log",
                                                maxBytes=100000)
 
-        self.loop = asyncio.get_event_loop()
         help_cmd = TerryHelp(dm_help=None, dm_help_threshold=800)
         super().__init__(command_prefix=_callable_prefix, description=read_config("info", "description"),
                          max_messages=10000,
@@ -90,21 +89,26 @@ class Terrygon(commands.AutoShardedBot):
                          allowed_mentions=discord.AllowedMentions(everyone=False, users=True, roles=True),
                          intents=discord.Intents().all(), owner_ids=read_config("bot_management", "bot_owners"))
 
-        try:
-            # attempt to set up the database connection pool, quit out if cannot.
-            self.db = self.loop.run_until_complete(create_pool())
-        except Exception as e:
-            print("Unable to connect to the postgresql database, please check your configuration!")
-            self.error_log.exception("".join(format_exception(type(e), e, e.__traceback__)))
-            exit(-1)
-
         # set up bot stdout logging, discord logging, and time event scheduling
-        self.console_output_log.info("Database pool has started!")
         self.terrygon_logger = TerrygonLogger(self)
         self.console_output_log.info("Discord logger has been configured")
         self.scheduler = scheduler.Scheduler(self)
         self.console_output_log.info("Scheduler has started.")
         self.exit_code = 0
+        self.db = None
+
+    async def setup_hook(self) -> None:
+        """Set up asynchronous coroutine"""
+        try:
+            # attempt to set up the database connection pool, quit out if cannot.
+            self.db = await create_pool()
+            self.console_output_log.info("Database pool has started!")
+        except Exception as e:
+            print("Unable to connect to the postgresql database, please check your configuration!")
+            self.error_log.exception("".join(format_exception(type(e), e, e.__traceback__)))
+            exit(-1)
+
+        #await self.scheduler.run_timed_jobs()
 
     async def prepare_db(self):
         """Prepare our database for use"""
@@ -174,6 +178,9 @@ class Terrygon(commands.AutoShardedBot):
         elif isinstance(error, errors.UntrustedError):
             await ctx.send("You are not a trusted user or a staff member and thus cannot use this!")
 
+        elif isinstance(error, commands.ExtensionAlreadyLoaded):
+            return
+
         # handles any uncaught command, posts traceback in the assigned bot errors channel.
         else:
             await ctx.send(f"An error occurred while processing the `{ctx.command.name}` command.")
@@ -199,34 +206,29 @@ class Terrygon(commands.AutoShardedBot):
     async def on_ready(self):
         """Code that runs when the bot is starting up"""
         await self.prepare_db()
-        self.load_extension("jishaku")  # de-bugging cog
+        await self.load_extension("jishaku")  # de-bugging cog
         self.console_output_log.info("jsk has been loaded")
         self.console_output_log.info("Schema configured")
         modules = read_config("info", "modules")
         if modules:
             for module in modules:
                 try:
-                    self.load_extension("modules." + module)
+                    await self.load_extension("modules." + module)
                     self.console_output_log.info(f"{module} module loaded")
                 except Exception as e:
                     err_msg = f"Failed to load the module {module}:\n{''.join(format_exception(type(e), e, e.__traceback__))}"
                     self.error_log.exception(err_msg)
 
         self.console_output_log.info(f"Client logged in as {self.user}")
-        self.loop.create_task(self.scheduler.run_timed_jobs())
         await self.change_presence(activity=discord.Game(read_config("info", "activity")))
-
-    def run(self, *args, **kwargs):
-        """Runs the bot and exits using certain codes."""
-        super().run(*args, **kwargs)
-        sys.exit(self.exit_code)
 
     async def is_log_registered(self, guild: discord.Guild, log_type):
         """Checks to see if a log channel is registered for a given guild"""
         if guild is None:
             return False
         async with self.db.acquire() as conn:
-            log_channel_types = await conn.fetchrow("SELECT column_name FROM information_schema.columns WHERE table_name = 'channels' AND column_name != 'guild_id';")
+            log_channel_types = await conn.fetchrow(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'channels' AND column_name != 'guild_id';")
             i = 0
             for channel in log_channel_types:
                 if log_type == channel:
@@ -242,13 +244,13 @@ class Terrygon(commands.AutoShardedBot):
                 return False
 
 
-if __name__ == "__main__":
-#def run_bot():
-    """Runs the bot"""
-    bot = Terrygon()
-    try:
-        bot.run(read_config("credentials", "token"))
-    except Exception:
-        print("Unable to login as a bot, please check your configuration for the bot token")
-        sys.exit(-1)
+bot = Terrygon()
 
+
+async def main():
+    async with bot:
+        await bot.start(read_config("credentials", "token"))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

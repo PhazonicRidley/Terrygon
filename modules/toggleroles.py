@@ -133,5 +133,5 @@ class ToggleRoles(commands.Cog):
         await self_roles.get_role_info(ctx, "toggle_roles", ("keyword", keyword))
 
 
-def setup(bot):
-    bot.add_cog(ToggleRoles(bot))
+async def setup(bot):
+    await bot.add_cog(ToggleRoles(bot))

@@ -124,5 +124,5 @@ class Trusted(commands.Cog):
         await self.bot.terrygon_logger.message_pinned('unpin', ctx.author, message)
 
 
-def setup(bot):
-    bot.add_cog(Trusted(bot))
+async def setup(bot):
+    await bot.add_cog(Trusted(bot))

@@ -74,5 +74,5 @@ class AccountInfo(commands.Cog):
         await self.list_out(ctx, user)
 
 
-def setup(bot):
-    bot.add_cog(AccountInfo(bot))
+async def setup(bot):
+    await bot.add_cog(AccountInfo(bot))

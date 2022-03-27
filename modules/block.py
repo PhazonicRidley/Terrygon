@@ -395,5 +395,5 @@ class DbBlocks:
         self.reason = reason
 
 
-def setup(bot):
-    bot.add_cog(Block(bot))
+async def setup(bot):
+    await bot.add_cog(Block(bot))

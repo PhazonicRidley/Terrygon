@@ -325,5 +325,5 @@ class Events(commands.Cog):
         await self.bot.terrygon_logger.custom_log("mod_logs", ctx.guild, msg + f"\nBy {ctx.author.mention} ({ctx.author.id})")
 
 
-def setup(bot):
-    bot.add_cog(Events(bot))
+async def setup(bot):
+    await bot.add_cog(Events(bot))

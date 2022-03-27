@@ -678,5 +678,5 @@ class Mod(commands.Cog):
         await self.bot.terrygon_logger.slowmode_log(channel, slow_time, ctx.author, reason)
 
 
-def setup(bot):
-    bot.add_cog(Mod(bot))
+async def setup(bot):
+    await bot.add_cog(Mod(bot))

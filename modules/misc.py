@@ -23,8 +23,8 @@ class Misc(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.curActivity = discord.Game(read_config("info", "activity"))
-        self.curStatus = discord.Status.online
+        self.cur_activity = discord.Game(read_config("info", "activity"))
+        self.cur_status = discord.Status.online
 
     @commands.guild_only()
     @commands.command(aliases=['mc'])
@@ -261,8 +261,8 @@ class Misc(commands.Cog):
         else:
             out = f"Setting current status to: `{str(act_type)[13:].title()} {msg}" + '`'
 
-        self.curActivity = discord.Activity(name=msg, type=act_type)
-        await self.bot.change_presence(status=self.curStatus, activity=self.curActivity)
+        self.cur_activity = discord.Activity(name=msg, type=act_type)
+        await self.bot.change_presence(status=self.cur_status, activity=self.cur_activity)
         await ctx.send(out)
 
     @checks.is_bot_owner()
@@ -279,8 +279,8 @@ class Misc(commands.Cog):
         if new_status not in statuses.keys():
             return await ctx.send("Invalid option, valid statuses are: `online`, `idle`, `dnd`, or `offline`")
 
-        self.curStatus = statuses[new_status]
-        await self.bot.change_presence(status=self.curStatus, activity=self.curActivity)
+        self.cur_status = statuses[new_status]
+        await self.bot.change_presence(status=self.cur_status, activity=self.cur_activity)
         await ctx.send(f"Status changed to {new_status}")
 
     @commands.guild_only()
@@ -388,5 +388,5 @@ class Misc(commands.Cog):
             return await ctx.send(embed=e, file=color_file)
 
 
-def setup(bot):
-    bot.add_cog(Misc(bot))
+async def setup(bot):
+    await bot.add_cog(Misc(bot))

@@ -240,5 +240,5 @@ class Approval(commands.Cog):
                                ctx.guild.id)
 
 
-def setup(bot):
-    bot.add_cog(Approval(bot))
+async def setup(bot):
+    await bot.add_cog(Approval(bot))
