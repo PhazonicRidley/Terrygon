@@ -16,7 +16,7 @@ services:
     build: .
     container_name: terrygon
     volumes:
-      - ./data:/data
+      - ./data:/opt/terrygon/data/
     depends_on:
       db:
         condition: service_healthy

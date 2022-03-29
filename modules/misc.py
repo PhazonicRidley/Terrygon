@@ -9,6 +9,7 @@ from utils import checks, common
 from datetime import datetime, timedelta
 import typing
 import collections
+from utils.button_paginator import Confirmation, BtnPaginator
 
 
 class Reminder:
@@ -386,6 +387,20 @@ class Misc(commands.Cog):
             color_file = common.image_from_rgb(webcolors.hex_to_rgb(hex_color_tuple[1]))
             e.set_image(url="attachment://color.png")
             return await ctx.send(embed=e, file=color_file)
+
+    @commands.command(name="confirm")
+    async def confirm(self, ctx: commands.Context):
+        """Test confirmation command"""
+        view = Confirmation('Bitches...', 'Ace looking head ass...')
+        await ctx.send("No bitches?", view=view)
+        await view.wait()
+        if view.value is None:
+            print('Timed out...')
+        elif view.value:
+            print('Bitches...')
+        else:
+            print('Ace looking head ass...')
+
 
 
 async def setup(bot):

@@ -1,8 +1,7 @@
 import random
-import math
 import discord
 from discord.ext import commands
-from utils import checks, common, paginator
+from utils import checks, common, paginator, button_paginator
 
 
 class Memes(commands.Cog):
@@ -70,9 +69,9 @@ class Memes(commands.Cog):
             return await ctx.send(f"No memes saved for {ctx.guild.name}")
         guild_memes = [f"- `{m['name']}`\n" for m in guild_memes]
         embed = discord.Embed(title=f"Memes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
-        pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(guild_memes, per_page=10, embed=embed),
-                                           clear_reactions_after=True, check_embeds=True)
-        await pages.start(ctx)
+        #pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(guild_memes, per_page=10, embed=embed), clear_reactions_after=True, check_embeds=True)
+        await button_paginator.BtnPaginator.start(ctx, entries=[e for e in range(0, 100)], per_page=3)
+
 
     @commands.guild_only()
     @memes.command(name="list")
