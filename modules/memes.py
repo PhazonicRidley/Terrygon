@@ -1,7 +1,7 @@
 import random
 import discord
 from discord.ext import commands
-from utils import checks, common, paginator, button_paginator
+from utils import checks, common, paginator, custom_views
 
 
 class Memes(commands.Cog):
@@ -70,7 +70,8 @@ class Memes(commands.Cog):
         guild_memes = [f"- `{m['name']}`\n" for m in guild_memes]
         embed = discord.Embed(title=f"Memes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
         #pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(guild_memes, per_page=10, embed=embed), clear_reactions_after=True, check_embeds=True)
-        await button_paginator.BtnPaginator.start(ctx, entries=[e for e in range(0, 100)], per_page=3)
+        pages = custom_views.BtnPaginator(entries=guild_memes, per_page=4, title="Memes", color=discord.Color.green())
+        await pages.start(ctx)
 
 
     @commands.guild_only()

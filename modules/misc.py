@@ -9,7 +9,7 @@ from utils import checks, common
 from datetime import datetime, timedelta
 import typing
 import collections
-from utils.button_paginator import Confirmation, BtnPaginator
+from utils.custom_views import Confirmation
 
 
 class Reminder:

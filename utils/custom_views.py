@@ -122,7 +122,7 @@ class BaseButtonPaginator(discord.ui.View):
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
 
-    @discord.ui.button(emoji='\U000023f9', style=discord.ButtonStyle.blurple)
+    @discord.ui.button(emoji='\U000023f9', style=discord.ButtonStyle.red)
     async def on_stop(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         self.clear_items()
         self.stop()
