@@ -130,7 +130,7 @@ class Misc(commands.Cog):
 
         embed = discord.Embed(title=f"Avatar for {user.name}#{user.discriminator}",
                               color=user.color.value if in_server else common.gen_color(user.id))
-        embed.set_image(url=user.avatar.url)
+        embed.set_image(url=user.display_avatar.url)
         await ctx.send(embed=embed)
 
     @commands.command()
