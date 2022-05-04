@@ -54,7 +54,6 @@ class BaseButtonPaginator(discord.ui.View):
 
     async def format_page(self, entries: Union[List[Any], Dict[Any, Any]]) -> discord.Embed:
         """|coro|
-        
         Used to make the embed that the user sees.
         
         Parameters
@@ -73,7 +72,7 @@ class BaseButtonPaginator(discord.ui.View):
         for i in range(0, len(entries), per_page):
             yield entries[i:i + per_page]
 
-    def _get_entries(self, *, up: bool = True, increment: bool = True) -> List[Any]:
+    def _get_entries(self, *, up: bool = True, increment: bool = True, index: int = None) -> List[Any]:
         if increment:
             if up:
                 self._current_page += 1
@@ -83,24 +82,26 @@ class BaseButtonPaginator(discord.ui.View):
                 self._current_page -= 1
                 if self._current_page < self._min_page:
                     self._current_page = self.max_page
+        elif index:
+            if 1 > index >= self._current_page:
+                raise commands.BadArgument("Invalid page index passed")
 
-        return self.pages[self._current_page - 1]
-
-    def _get_first_page(self) -> List[Any]:
-        self._current_page = 1
-        return self.pages[self._current_page - 1]
-
-    def _get_last_page(self) -> List[Any]:
-        self._current_page = self._max_page
+            self._current_page = index
         return self.pages[self._current_page - 1]
 
     def get_page(self, idx: int) -> List[Any]:
         """Gets a page from the paginator"""
         return self.pages[idx - 1]
 
+    def set_page(self, idx: int):
+        """Sets a page"""
+        if 1 > idx >= self._current_page:
+            raise commands.BadArgument("Invalid page index passed")
+        self._current_page = idx
+
     @discord.ui.button(emoji='\U000023ea', style=discord.ButtonStyle.blurple)
     async def on_rewind(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        entries = self._get_first_page()
+        entries = self._get_entries(index=1)
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
 
@@ -118,7 +119,7 @@ class BaseButtonPaginator(discord.ui.View):
 
     @discord.ui.button(emoji='\U000023e9', style=discord.ButtonStyle.blurple)
     async def on_fastforward(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        entries = self._get_last_page()
+        entries = self._get_entries(index=self._max_page)
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
 
@@ -145,7 +146,6 @@ class BaseButtonPaginator(discord.ui.View):
 
 class PaginatorSelector(discord.ui.Select):
     """A select menu for jumping to different pages"""
-
     def __init__(self, pages: List[Any]):
         # create selector options
         options = []
@@ -160,7 +160,6 @@ class PaginatorSelector(discord.ui.Select):
         for idx, p in enumerate(descriptions, start=1):
             options.append(discord.SelectOption(label=str(idx), description=p))
 
-        print(f"Sanity check i built my list right: {len(options) == len(pages) }")
         super().__init__(placeholder="What page?", options=options, min_values=1, max_values=1)
 
     async def callback(self, interaction: discord.Interaction):
@@ -168,7 +167,7 @@ class PaginatorSelector(discord.ui.Select):
         entries = self.view.get_page(int(self.values[0]))
         embed = await self.view.format_page(entries=entries)
         embed.set_footer(text=f"Page {self.values[0]} of {self.view.total_pages}")
-        self.view._current_page = int(self.values[0])
+        self.view.set_page(int(self.values[0]))
         return await interaction.response.edit_message(embed=embed)
 
 
@@ -212,14 +211,3 @@ class Confirmation(discord.ui.View):
         self.value = False
         self.stop()
         return await interaction.response.edit_message(content=self.cancel_text, view=self)
-
-
-
-
-
-
-
-
-
-
-
