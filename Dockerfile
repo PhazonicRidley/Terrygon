@@ -12,4 +12,3 @@ RUN touch data/logs/error.log
 RUN touch data/logs/console_output.log
 COPY . .
 ENTRYPOINT ["bash", "docker-entrypoint.sh"]
-#ENTRYPOINT ["python3", "terrygon.py"]

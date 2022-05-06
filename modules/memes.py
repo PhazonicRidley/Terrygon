@@ -69,9 +69,8 @@ class Memes(commands.Cog):
             return await ctx.send(f"No memes saved for {ctx.guild.name}")
         guild_memes = [f"- `{m['name']}`\n" for m in guild_memes]
         embed = discord.Embed(title=f"Memes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
-        #pages = paginator.ReactDeletePages(paginator.BasicEmbedMenu(guild_memes, per_page=10, embed=embed), clear_reactions_after=True, check_embeds=True)
-        pages = custom_views.BtnPaginator(entries=guild_memes, per_page=4, title="Memes", color=discord.Color.green())
-        await pages.start(ctx)
+        pages = custom_views.BtnPaginator(ctx, entries=guild_memes, per_page=4, title="Memes", color=discord.Color.green())
+        await pages.start()
 
 
     @commands.guild_only()

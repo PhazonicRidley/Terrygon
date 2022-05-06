@@ -22,11 +22,11 @@ class BaseButtonPaginator(discord.ui.View):
     if TYPE_CHECKING:
         ctx: commands.Context
 
-    def __init__(self, *, entries: Union[List[Any], Dict[Any, Any]], per_page: int = 6) -> None:
+    def __init__(self, ctx: commands.Context, *, entries: Union[List[Any], Dict[Any, Any]], per_page: int = 6) -> None:
         super().__init__(timeout=180)
         self.entries = entries
         self.per_page = per_page
-
+        self.ctx = ctx
         self._min_page = 1
         self._current_page = 1
         self.pages = list(self._format_pages(entries, per_page))
@@ -89,6 +89,14 @@ class BaseButtonPaginator(discord.ui.View):
             self._current_page = index
         return self.pages[self._current_page - 1]
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """makes sure only the context user can activate interactions"""
+        if interaction.user == self.ctx.author:
+            return True
+
+        await interaction.response.send_message(f"This menu can only be controlled by {self.ctx.author}", ephemeral=True)
+        return False
+
     def get_page(self, idx: int) -> List[Any]:
         """Gets a page from the paginator"""
         return self.pages[idx - 1]
@@ -129,19 +137,14 @@ class BaseButtonPaginator(discord.ui.View):
         self.stop()
         return await interaction.response.edit_message(view=self)
 
-    async def start(self, context: discord.abc.Messageable):
+    async def start(self):
         """|coro|
         
         Used to start the paginator.
-
-        Parameters
-        ----------
-        context: :class:`commands.abc.Messageable`
-            The context to send to. This could also be discord.abc.Messageable as `ctx.send` is the only method
         """
         entries = self._get_entries(increment=False)
         embed = await self.format_page(entries=entries)
-        await context.send(embed=embed, view=self)
+        await self.ctx.send(embed=embed, view=self)
 
 
 class PaginatorSelector(discord.ui.Select):
@@ -158,7 +161,7 @@ class PaginatorSelector(discord.ui.Select):
             descriptions.append(desc)
 
         for idx, p in enumerate(descriptions, start=1):
-            options.append(discord.SelectOption(label=str(idx), description=p))
+            options.append(discord.SelectOption(label=str(idx), value=str(idx), description=p))
 
         super().__init__(placeholder="What page?", options=options, min_values=1, max_values=1)
 
@@ -173,8 +176,8 @@ class PaginatorSelector(discord.ui.Select):
 
 # Can be used as so
 class BtnPaginator(BaseButtonPaginator):
-    def __init__(self, entries: Union[List[Any], Dict[Any, Any]], *, per_page: int = 6, **embed_properties):
-        super().__init__(entries=entries, per_page=per_page)
+    def __init__(self, ctx: commands.Context, entries: Union[List[Any], Dict[Any, Any]], *, per_page: int = 6, **embed_properties):
+        super().__init__(ctx, entries=entries, per_page=per_page)
         self.embed_properties = embed_properties
         self.add_item(PaginatorSelector(self.pages))
 
@@ -211,3 +214,5 @@ class Confirmation(discord.ui.View):
         self.value = False
         self.stop()
         return await interaction.response.edit_message(content=self.cancel_text, view=self)
+
+

@@ -6,7 +6,7 @@ from utils import checks, errors, paginator
 
 
 class Approval(commands.Cog):
-
+    """Approval System"""
     def __init__(self, bot):
         self.bot = bot
 
