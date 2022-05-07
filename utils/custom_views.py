@@ -19,8 +19,6 @@ class BaseButtonPaginator(discord.ui.View):
     pages: List[List[Any]]
         A list of pages which contain all entries for that page.
     """
-    if TYPE_CHECKING:
-        ctx: commands.Context
 
     def __init__(self, ctx: commands.Context, *, entries: Union[List[Any], Dict[Any, Any]], per_page: int = 6) -> None:
         super().__init__(timeout=180)
@@ -181,7 +179,7 @@ class BtnPaginator(BaseButtonPaginator):
         self.embed_properties = embed_properties
         self.add_item(PaginatorSelector(self.pages))
 
-    async def format_page(self, entries):
+    async def format_page(self, entries) -> discord.Embed:
         embed = discord.Embed(**self.embed_properties)
         embed.set_footer(text=f"Page {self.current_page} of {self.total_pages}")
         if entries:
