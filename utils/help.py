@@ -15,31 +15,28 @@ class TerryHelp(commands.HelpCommand):
 
     async def send_bot_help(self, mapping, /):
         """Sends bot help"""
-
-        paginator = HelpPaginator(self.context, list(mapping), 'bot')
+        emb_desc = f"{self.context.bot.description}\n\nUse `{self.context.prefix}help [command]` for more information on a command.\nYou can also use `{self.context.prefix}help [category]` for more information on a category."
+        paginator = HelpPaginator(self.context, dict(mapping), 'bot', title="Help!", description=emb_desc, color=discord.Color.purple())
         await paginator.start()
 
 
 class HelpPaginator(custom_views.BaseButtonPaginator):
     """Pagination over commands and cogs, clone of BtnPaginator with different formatting"""
 
-    def __init__(self, ctx: commands.Context, entries: Union[List[str], Dict[str, str]], mode: str):
+    def __init__(self, ctx: commands.Context, entries: Union[list, dict], mode: str, **embed_properties):
         self.mode = mode
-        self.prefix = ctx.prefix
-        # self.select =
+        self.embed_properties = embed_properties
         super().__init__(ctx, entries=entries, per_page=3)
 
     async def format_page(self, entries) -> discord.Embed:
-        embed = discord.Embed(title="Help!")  # TODO: make pretty later
+        embed = discord.Embed(**self.embed_properties)  # TODO: make pretty later
         embed.set_footer(text=f"Page {self.current_page} of {self.total_pages}")
         if not entries:
-            raise ValueError("You prob made a mistake.")
+            raise ValueError("No commands????????????????????")
 
         if self.mode == 'bot':
-            # TODO: get paginator to handle dicts properly in _format_entries. split the dict up have a list of dicts
-            for cog in entries:
-                embed.add_field(name=f"__**{cog.qualified_name}**__",
-                                value=f"{'  '.join([x.name for x in cog.get_commands()])}", inline=False)
+            for cog, command_list in entries:
+                embed.add_field(name=f"__**{cog.qualified_name if cog else 'No Category'}**__", value=f"{' '.join([x.name for x in command_list])}", inline=False)
 
         return embed
 

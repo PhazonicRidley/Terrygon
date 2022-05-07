@@ -22,13 +22,21 @@ class BaseButtonPaginator(discord.ui.View):
 
     def __init__(self, ctx: commands.Context, *, entries: Union[List[Any], Dict[Any, Any]], per_page: int = 6) -> None:
         super().__init__(timeout=180)
-        self.entries = entries
+        if isinstance(entries, list):
+            self.entries = entries
+        else:
+            self.entries = BaseButtonPaginator.process_dictionary(entries)
         self.per_page = per_page
         self.ctx = ctx
         self._min_page = 1
         self._current_page = 1
-        self.pages = list(self._format_pages(entries, per_page))
+        self.pages = list(self._format_pages(self.entries, per_page))
         self._max_page = len(self.pages)
+    
+    @classmethod
+    def process_dictionary(cls, entries: dict[Any, Any]) -> list[tuple]:
+        """Splits a dictionary to be wrapped by a list"""
+        return list(zip(entries.keys(), entries.values()))
 
     @property
     def max_page(self) -> int:
@@ -105,9 +113,10 @@ class BaseButtonPaginator(discord.ui.View):
             raise commands.BadArgument("Invalid page index passed")
         self._current_page = idx
 
-    @discord.ui.button(emoji='\U000023ea', style=discord.ButtonStyle.blurple)
+    @discord.ui.button(emoji='\U000023ea', style=discord.ButtonStyle.gray)
     async def on_rewind(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        entries = self._get_entries(index=1)
+        # TODO: fix
+        entries = self._get_entries(index=self.min_page)
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
 
@@ -123,9 +132,10 @@ class BaseButtonPaginator(discord.ui.View):
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
 
-    @discord.ui.button(emoji='\U000023e9', style=discord.ButtonStyle.blurple)
+    @discord.ui.button(emoji='\U000023e9', style=discord.ButtonStyle.gray)
     async def on_fastforward(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        entries = self._get_entries(index=self._max_page)
+        # TODO: fix
+        entries = self._get_entries(index=self.max_page)
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
 
