@@ -68,7 +68,6 @@ class Memes(commands.Cog):
         if not guild_memes:
             return await ctx.send(f"No memes saved for {ctx.guild.name}")
         guild_memes = [f"- `{m['name']}`\n" for m in guild_memes]
-        embed = discord.Embed(title=f"Memes for {ctx.guild.name}", color=common.gen_color(ctx.guild.id))
         pages = custom_views.BtnPaginator(ctx, entries=guild_memes, per_page=4, title="Memes", color=discord.Color.green())
         await pages.start()
 

@@ -20,7 +20,7 @@ class BaseButtonPaginator(discord.ui.View):
         A list of pages which contain all entries for that page.
     """
 
-    def __init__(self, ctx: commands.Context, *, entries: Union[List[Any], Dict[Any, Any]], per_page: int = 6) -> None:
+    def __init__(self, ctx: commands.Context, *, entries: Union[List[Any], Dict[Any, Any]], per_page: int = 6, delete_msg: bool = False) -> None:
         super().__init__(timeout=180)
         if isinstance(entries, list):
             self.entries = entries
@@ -30,6 +30,7 @@ class BaseButtonPaginator(discord.ui.View):
         self.ctx = ctx
         self._min_page = 1
         self._current_page = 1
+        self.to_delete_msg = delete_msg
         self.pages = list(self._format_pages(self.entries, per_page))
         self._max_page = len(self.pages)
     
@@ -79,7 +80,12 @@ class BaseButtonPaginator(discord.ui.View):
             yield entries[i:i + per_page]
 
     def _get_entries(self, *, up: bool = True, increment: bool = True, index: int = None) -> List[Any]:
-        if increment:
+        if index:
+            if 1 > index >= self._current_page:
+                raise commands.BadArgument("Invalid page index passed")
+            self._current_page = index
+
+        elif increment:
             if up:
                 self._current_page += 1
                 if self._current_page > self._max_page:
@@ -88,11 +94,7 @@ class BaseButtonPaginator(discord.ui.View):
                 self._current_page -= 1
                 if self._current_page < self._min_page:
                     self._current_page = self.max_page
-        elif index:
-            if 1 > index >= self._current_page:
-                raise commands.BadArgument("Invalid page index passed")
 
-            self._current_page = index
         return self.pages[self._current_page - 1]
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -115,7 +117,6 @@ class BaseButtonPaginator(discord.ui.View):
 
     @discord.ui.button(emoji='\U000023ea', style=discord.ButtonStyle.gray)
     async def on_rewind(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        # TODO: fix
         entries = self._get_entries(index=self.min_page)
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
@@ -134,16 +135,18 @@ class BaseButtonPaginator(discord.ui.View):
 
     @discord.ui.button(emoji='\U000023e9', style=discord.ButtonStyle.gray)
     async def on_fastforward(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        # TODO: fix
         entries = self._get_entries(index=self.max_page)
         embed = await self.format_page(entries=entries)
         return await interaction.response.edit_message(embed=embed)
 
-    @discord.ui.button(emoji='\U000023f9', style=discord.ButtonStyle.red)
+    @discord.ui.button(emoji='\U000023f9', style=discord.ButtonStyle.red, custom_id="stop")
     async def on_stop(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         self.clear_items()
         self.stop()
-        return await interaction.response.edit_message(view=self)
+        if self.to_delete_msg:
+            return await interaction.message.delete()
+        else:
+            return await interaction.response.edit_message(view=self)
 
     async def start(self):
         """|coro|
@@ -152,7 +155,11 @@ class BaseButtonPaginator(discord.ui.View):
         """
         entries = self._get_entries(increment=False)
         embed = await self.format_page(entries=entries)
-        await self.ctx.send(embed=embed, view=self)
+        if self.total_pages == 1:
+            for child in self.children:
+                if child.custom_id != 'stop':
+                    child.disabled = True
+        await self.ctx.reply(embed=embed, view=self)
 
 
 class PaginatorSelector(discord.ui.Select):

@@ -207,7 +207,7 @@ class Terrygon(commands.AutoShardedBot):
     async def on_ready(self):
         """Code that runs when the bot is starting up"""
         await self.prepare_db()
-        #await self.load_extension("jishaku")  # de-bugging cog
+        await self.load_extension("jishaku")  # de-bugging cog
         self.console_output_log.info("jsk has been loaded")
         self.console_output_log.info("Schema configured")
         modules = read_config("info", "modules")
