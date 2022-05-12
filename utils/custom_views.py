@@ -148,7 +148,7 @@ class BaseButtonPaginator(discord.ui.View):
         else:
             return await interaction.response.edit_message(view=self)
 
-    async def start(self):
+    async def start(self, *, message: discord.Message = None):
         """|coro|
         
         Used to start the paginator.
@@ -159,7 +159,10 @@ class BaseButtonPaginator(discord.ui.View):
             for child in self.children:
                 if child.custom_id != 'stop':
                     child.disabled = True
-        await self.ctx.reply(embed=embed, view=self)
+        if message:
+            await message.edit(embed=embed, view=self)
+        else:
+            await self.ctx.reply(embed=embed, view=self)
 
 
 class PaginatorSelector(discord.ui.Select):
