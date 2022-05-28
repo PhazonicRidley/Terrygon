@@ -2,6 +2,8 @@ import subprocess
 import os
 import sys
 import asyncpg
+import discord
+
 from utils import checks
 from tabulate import tabulate
 from traceback import format_exception
@@ -27,7 +29,7 @@ class BotOwner(commands.Cog):
 
         try:
             addon = "modules." + module
-            self.bot.unload_extension(addon)
+            await self.bot.unload_extension(addon)
             self.bot.console_output_log.warning(f"{module} unloaded")
             await ctx.send(f':x: {module} module unloaded.')
 
@@ -49,25 +51,55 @@ class BotOwner(commands.Cog):
         """(Re)loads an addon. (Bot Owners only)"""
         module = "modules." + module_in.lower()
         try:
-            self.bot.unload_extension(module)
+            await self.bot.unload_extension(module)
             reloading = True
         except commands.ExtensionNotLoaded:
             reloading = False
 
         try:
-            self.bot.load_extension(module)
+            await self.bot.load_extension(module)
             self.bot.console_output_log.info(f"{module_in} loaded")
             await ctx.send(
                 f":white_check_mark: {module_in} reloaded." if reloading else f":white_check_mark: {module_in} loaded")
 
         except commands.ExtensionNotFound:
-            return await ctx.send(f":exclaimation: {module_in} was not found, is it in the `modules` folder?")
+            return await ctx.send(f":exclamation: {module_in} was not found, is it in the `modules` folder?")
 
         except Exception as e:
             # end all catch for errors
             err_msg = " Failed to load {}: {}".format(module, "".join(format_exception(type(e), e, e.__traceback__)))
             self.bot.error_log.exception(err_msg)
             await ctx.send('💢 Error trying to load the addon:\n```\n{}: {}\n```'.format(type(e).__name__, e))
+
+    @commands.command(alias=['listcogs', 'listcog'], name='listmodules')
+    async def list_modules(self, ctx: commands.Context):
+        """Lists the status of all modules installed on the bot"""
+        # get modules, handle jsk completely seperately
+        loaded_module_names = set([mod[8:] for mod in self.bot.extensions.keys() if mod[:8] == 'modules.'])
+        all_module_names = set([x[:-3] for x in os.listdir('modules') if os.path.isfile(os.path.join('modules', x))])
+        unload_module_names = all_module_names - loaded_module_names
+
+        if 'jishaku' in self.bot.extensions.keys():
+            loaded_module_names.add('jishaku')
+        else:
+            unload_module_names.add('jishaku')
+
+        loaded_module_string = ""
+        for module in loaded_module_names:
+            loaded_module_string += f"✅ `{module}`\n"
+
+        embed = discord.Embed(title="Module Status")
+        embed.add_field(name="Loaded Modules", value=loaded_module_string, inline=True)
+        if unload_module_names:
+            unload_module_string = ""
+            for module in unload_module_names:
+                unload_module_string += f"❌ `{module}`\n"
+            embed.add_field(name="Unloaded Modules", value=unload_module_string, inline=True)
+
+        count_str = f"""Loaded modules: {len(loaded_module_names)}, Unloaded modules: {len(unload_module_names)}, Total
+                    Modules: {len(loaded_module_names) + len(unload_module_names)}"""
+        embed.set_footer(text=count_str)
+        await ctx.send(embed=embed)
 
     async def restart_bot(self, ctx: commands.Context):
         """Restarts the bot"""

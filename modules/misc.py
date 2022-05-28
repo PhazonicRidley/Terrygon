@@ -294,7 +294,8 @@ class Misc(commands.Cog):
 
     @commands.group(invoke_without_command=True, aliases=['reminder'])
     async def remind(self, ctx: commands.Context, time: str, *, text: str):
-        """Reminds you about something in dms! (Please make sure you have your dms on if you are using this from a server), time is in dhms format ie `10 minutes` would be `10m`"""
+        """Reminds you about something in dms! (Please make sure you have your dms on if you are using this from a
+        server), time is in dhms format ie `10 minutes` would be `10m` """
         time_seconds = common.parse_time(time)
         if time_seconds == -1:
             return await ctx.send("Invalid time passed!")
