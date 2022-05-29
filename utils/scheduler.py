@@ -27,6 +27,8 @@ class Scheduler:
             'reminder': self.remind
         }
 
+        self._job_stack = []
+
     async def add_timed_job(self, job_type: str, creation: timedelta, expiration: timedelta, **kwargs):
         """Function to add a timed job to the database"""
 
@@ -54,12 +56,15 @@ class Scheduler:
             await asyncio.sleep(sleep_time)
         await coro
         await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1", job_id)
+        self._job_stack.pop(0)
 
     async def run_timed_jobs(self):
         """Runs timed jobs"""
         while not self.bot.is_closed():
+            await asyncio.sleep(2)  # slow for a bit
             job = await self.get_job()
-            if job and str(job.id) not in [x.get_name() for x in asyncio.all_tasks()]:
+            if job and job.id not in self._job_stack:
+                self._job_stack.insert(0, job.id)
                 asyncio.create_task(self.process_job(
                     (job.expiration - datetime.utcnow()).total_seconds(),
                     self.actions[job.type](**job.extra), job.id), name=str(job.id))
