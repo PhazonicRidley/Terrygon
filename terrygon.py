@@ -79,6 +79,7 @@ class Terrygon(commands.AutoShardedBot):
 
     def __init__(self):
         # set up loggers
+        self.scheduler = None
         self.error_log = setup_logger(name="error_log", logfile="data/logs/error.log", maxBytes=100000)
         self.console_output_log = setup_logger(name="console_output_log", logfile="data/logs/console_output.log",
                                                maxBytes=100000)
@@ -108,8 +109,6 @@ class Terrygon(commands.AutoShardedBot):
             print("Unable to connect to the postgresql database, please check your configuration!")
             self.error_log.exception("".join(format_exception(type(e), e, e.__traceback__)))
             exit(-1)
-
-        #await self.scheduler.run_timed_jobs()
 
     async def prepare_db(self):
         """Prepare our database for use"""
@@ -207,7 +206,7 @@ class Terrygon(commands.AutoShardedBot):
     async def on_ready(self):
         """Code that runs when the bot is starting up"""
         await self.prepare_db()
-        #await self.load_extension("jishaku")  # de-bugging cog
+        await self.load_extension("jishaku")  # de-bugging cog
         self.console_output_log.info("jsk has been loaded")
         self.console_output_log.info("Schema configured")
         modules = read_config("info", "modules")
@@ -222,6 +221,7 @@ class Terrygon(commands.AutoShardedBot):
 
         self.console_output_log.info(f"Client logged in as {self.user}")
         await self.change_presence(activity=discord.Game(read_config("info", "activity")))
+        asyncio.create_task(self.scheduler.run_timed_jobs(), name="Timer Jobs Loop")
 
     async def is_log_registered(self, guild: discord.Guild, log_type):
         """Checks to see if a log channel is registered for a given guild"""
@@ -245,10 +245,8 @@ class Terrygon(commands.AutoShardedBot):
                 return False
 
 
-bot = Terrygon()
-
-
 async def main():
+    bot = Terrygon()
     async with bot:
         await bot.start(read_config("credentials", "token"))
 
