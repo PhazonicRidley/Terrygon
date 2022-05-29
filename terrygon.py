@@ -79,7 +79,6 @@ class Terrygon(commands.AutoShardedBot):
 
     def __init__(self):
         # set up loggers
-        self.scheduler = None
         self.error_log = setup_logger(name="error_log", logfile="data/logs/error.log", maxBytes=100000)
         self.console_output_log = setup_logger(name="console_output_log", logfile="data/logs/console_output.log",
                                                maxBytes=100000)
