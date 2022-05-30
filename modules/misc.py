@@ -376,7 +376,8 @@ class Misc(commands.Cog):
             if not rgb_color:
                 return await ctx.send("Unable to parse RGB.")
             e = discord.Embed(title=f"Color RGB {', '.join(map(lambda c: str(c), rgb_color))}",
-                              color=discord.Color.from_rgb(*rgb_color), description=f"Color Hex: {webcolors.rgb_to_hex(rgb_color)}")
+                              color=discord.Color.from_rgb(*rgb_color),
+                              description=f"Color Hex: {webcolors.rgb_to_hex(rgb_color)}")
             color_file = common.image_from_rgb(rgb_color)
             e.set_image(url="attachment://color.png")
             return await ctx.send(embed=e, file=color_file)
@@ -384,24 +385,22 @@ class Misc(commands.Cog):
         elif mode == "hex":
             if not hex_color_tuple:
                 return ctx.send("Unable to parse hex code.")
-            e = discord.Embed(title=f"Color Hex {hex_color_tuple[1]}", color=hex_color_tuple[0], description=f"Color RGB {', '.join(map(lambda x: str(x), tuple(webcolors.hex_to_rgb(hex_color_tuple[1]))))}")
+            e = discord.Embed(title=f"Color Hex {hex_color_tuple[1]}", color=hex_color_tuple[0],
+                              description=f"Color RGB {', '.join(map(lambda x: str(x), tuple(webcolors.hex_to_rgb(hex_color_tuple[1]))))}")
             color_file = common.image_from_rgb(webcolors.hex_to_rgb(hex_color_tuple[1]))
             e.set_image(url="attachment://color.png")
             return await ctx.send(embed=e, file=color_file)
 
-    @commands.command(name="confirm")
-    async def confirm(self, ctx: commands.Context):
-        """Test confirmation command"""
-        view = Confirmation('Bitches...', 'Ace looking head ass...')
-        await ctx.send("No bitches?", view=view)
-        await view.wait()
-        if view.value is None:
-            print('Timed out...')
-        elif view.value:
-            print('Bitches...')
-        else:
-            print('Ace looking head ass...')
-
+    @commands.command(name="emoji", aliases=['e']) # TODO: support unicode emojis and fuzz for emotes
+    async def emoji(self, ctx: commands.Context, emote: typing.Union[str, int, discord.Emoji]):
+        """Prints a big image of a discord emoji"""
+        try:
+            emoji_obj = await commands.EmojiConverter().convert(ctx, emote)
+        except commands.EmojiNotFound:
+            return await ctx.send(f"No emoji `{emote}` found")
+        embed = discord.Embed(color=discord.Color.purple(), title=emoji_obj.name)
+        embed.set_image(url=emoji_obj.url)
+        await ctx.send(embed=embed)
 
 
 async def setup(bot):
