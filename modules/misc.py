@@ -391,7 +391,7 @@ class Misc(commands.Cog):
             e.set_image(url="attachment://color.png")
             return await ctx.send(embed=e, file=color_file)
 
-    @commands.command(name="emoji", aliases=['e']) # TODO: support unicode emojis and fuzz for emotes
+    @commands.command(name="emoji", aliases=['e'])  # TODO: support unicode emojis and fuzz for emotes
     async def emoji(self, ctx: commands.Context, emote: typing.Union[str, int, discord.Emoji]):
         """Prints a big image of a discord emoji"""
         try:
