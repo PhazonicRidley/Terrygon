@@ -1,3 +1,5 @@
+from typing import Callable, Any, Coroutine
+
 import discord
 import asyncio
 from datetime import datetime, timedelta
@@ -6,7 +8,7 @@ from utils import errors
 
 class TimedJob:
 
-    def __init__(self, record):
+    def __init__(self, record: dict[str, Any]):
         self.id = record['id']
         self.type = record['type']
         self.expiration = record['expiration']
@@ -25,49 +27,55 @@ class Scheduler:
             'reminder': self.remind
         }
 
-    async def add_timed_job(self, type: str, creation: datetime, expiration: timedelta, **kwargs):
+        self._job_stack = []
+
+    async def add_timed_job(self, job_type: str, creation: timedelta, expiration: timedelta, **kwargs):
         """Function to add a timed job to the database"""
 
         # adds time to the creation in seconds
         expiration += creation
+        # timers that do not require database additions
         if (expiration - creation).total_seconds() <= 60:
             await asyncio.sleep((expiration - creation).total_seconds())
-            await self.actions[type](**kwargs)
-
+            await self.actions[job_type](**kwargs)
             return
 
+        # build query to insert into database to be called back at a later time
         if not kwargs:
             query = "INSERT INTO timed_jobs (type, expiration) VALUES ($1, $2)"
-            args = [type, expiration]
+            args = [job_type, expiration]
         else:
             query = "INSERT INTO timed_jobs (type, expiration, extra) VALUES ($1, $2, $3)"
-            args = [type, expiration, kwargs]
+            args = [job_type, expiration, kwargs]
 
         await self.bot.db.execute(query, *args)
 
+    async def process_job(self, sleep_time: int, coro: Coroutine, job_id: int):
+        """Processes job"""
+        if sleep_time > 0:
+            await asyncio.sleep(sleep_time)
+        await coro
+        await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1", job_id)
+        self._job_stack.pop(0)
+
     async def run_timed_jobs(self):
         """Runs timed jobs"""
-        # try:
         while not self.bot.is_closed():
+            await asyncio.sleep(2)  # slow for a bit
             job = await self.get_job()
-            if job:
-                current_time = datetime.utcnow()
-                if job.expiration >= current_time:
-                    await asyncio.sleep((job.expiration - current_time).total_seconds())
-                    await self.actions[job.type](**job.extra)
-                    await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1",
-                                              job.id)  # remove the job from the db
+            if job and job.id not in self._job_stack:
+                self._job_stack.insert(0, job.id)
+                asyncio.create_task(self.process_job(
+                    (job.expiration - datetime.utcnow()).total_seconds(),
+                    self.actions[job.type](**job.extra), job.id), name=str(job.id))
 
-                else:
-                    await self.actions[job.type](**job.extra)
-                    await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1",
-                                              job.id)  # remove the job from the db
-
-    async def get_job(self):
+    async def get_job(self) -> TimedJob or None:
         """Get the latest timed job"""
+        assert (self.bot is not None)
         record = await self.bot.db.fetchrow(
-            """SELECT * FROM timed_jobs WHERE "expiration" < (CURRENT_DATE + $1::interval) ORDER BY "expiration" LIMIT 1""",
-            timedelta(days=10))
+            """SELECT * FROM timed_jobs WHERE "expiration" > CURRENT_DATE OR "expiration" < (CURRENT_DATE + $1::interval) ORDER BY "expiration" 
+            LIMIT 1""",
+            timedelta(minutes=5))
         return TimedJob(record) if record else None
 
     # function to add jobs
@@ -118,7 +126,8 @@ class Scheduler:
         muted_role = guild.get_role(
             await self.bot.db.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", guild.id))
         if muted_role is None:
-            return await self.bot.terrygon_logger.custom_log("mod_logs", guild, f":warning: **Muted role could not be found !** Could not unmute user.")
+            return await self.bot.terrygon_logger.custom_log("mod_logs", guild,
+                                                             f":warning: **Muted role could not be found !** Could not unmute user.")
 
         await self.bot.db.execute("DELETE FROM mutes WHERE id = $1", mute_id)
         if isinstance(user, discord.Member):

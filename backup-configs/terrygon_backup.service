@@ -1,0 +1,11 @@
+[Unit]
+Description=Terrygon backup script, runs every Wednesday
+
+[Service]
+Type=simple
+WorkingDirectory=/home/mia/terrygon
+ExecStart=/home/mia/terrygon/backup.sh
+#User=mia
+
+#[Install]
+#WantedBy=default.target

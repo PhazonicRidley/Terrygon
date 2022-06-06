@@ -9,7 +9,7 @@ import asyncpg
 import asyncio
 from logzero import setup_logger
 import toml
-from utils import errors, scheduler, checks, custom_views, help
+from utils import errors, scheduler, checks, custom_views
 from utils.logger import TerrygonLogger
 import json
 
@@ -55,23 +55,23 @@ async def _callable_prefix(bot, message: discord.Message):
         return commands.when_mentioned_or(default_prefix)(bot, message)
 
 
-# class TerryHelp(commands.MinimalHelpCommand):
-#     """Custom help"""
-#
-#     def __init__(self, **options):
-#         super().__init__(**options)
-#
-#     # taken from and slightly modified from https://github.com/Rapptz/discord.py/blob/master/discord/ext/commands/help.py#L971
-#     async def send_pages(self):
-#         destination = self.get_destination()
-#         if type(destination) == discord.Member:
-#             try:
-#                 await self.context.message.add_reaction("\U0001f4ec")
-#             except discord.Forbidden:
-#                 pass
-#         print(len(self.paginator.pages))
-#         for page in self.paginator.pages:
-#             await destination.send(page)
+class TerryHelp(commands.MinimalHelpCommand):
+    """Custom help"""
+
+    def __init__(self, **options):
+        super().__init__(**options)
+
+    # taken from and slightly modified from https://github.com/Rapptz/discord.py/blob/master/discord/ext/commands/help.py#L971
+    async def send_pages(self):
+        destination = self.get_destination()
+        if type(destination) == discord.Member:
+            try:
+                await self.context.message.add_reaction("\U0001f4ec")
+            except discord.Forbidden:
+                pass
+        print(len(self.paginator.pages))
+        for page in self.paginator.pages:
+            await destination.send(page)
 
 
 class Terrygon(commands.AutoShardedBot):
@@ -83,10 +83,10 @@ class Terrygon(commands.AutoShardedBot):
         self.console_output_log = setup_logger(name="console_output_log", logfile="data/logs/console_output.log",
                                                maxBytes=100000)
 
-        #help_cmd = TerryHelp(dm_help=None, dm_help_threshold=800)
+        help_cmd = TerryHelp(dm_help=None, dm_help_threshold=800)
         super().__init__(command_prefix=_callable_prefix, description=read_config("info", "description"),
                          max_messages=10000,
-                         help_command=help.TerryHelp(),
+                         help_command=help_cmd,
                          allowed_mentions=discord.AllowedMentions(everyone=False, users=True, roles=True),
                          intents=discord.Intents().all(), owner_ids=read_config("bot_management", "bot_owners"))
 
@@ -108,8 +108,6 @@ class Terrygon(commands.AutoShardedBot):
             print("Unable to connect to the postgresql database, please check your configuration!")
             self.error_log.exception("".join(format_exception(type(e), e, e.__traceback__)))
             exit(-1)
-
-        #await self.scheduler.run_timed_jobs()
 
     async def prepare_db(self):
         """Prepare our database for use"""
@@ -222,6 +220,7 @@ class Terrygon(commands.AutoShardedBot):
 
         self.console_output_log.info(f"Client logged in as {self.user}")
         await self.change_presence(activity=discord.Game(read_config("info", "activity")))
+        asyncio.create_task(self.scheduler.run_timed_jobs(), name="Timer Jobs Loop")
 
     async def is_log_registered(self, guild: discord.Guild, log_type):
         """Checks to see if a log channel is registered for a given guild"""
@@ -245,10 +244,8 @@ class Terrygon(commands.AutoShardedBot):
                 return False
 
 
-bot = Terrygon()
-
-
 async def main():
+    bot = Terrygon()
     async with bot:
         await bot.start(read_config("credentials", "token"))
 
