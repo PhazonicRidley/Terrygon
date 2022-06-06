@@ -1,0 +1,10 @@
+[Unit]
+Description=Runs terrygon backup
+
+[Timer]
+Unit=terrygon_backup.service
+OnCalendar=Thu *-*-* 19:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

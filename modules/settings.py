@@ -123,6 +123,7 @@ class Settings(commands.Cog):
         """Command for setting and unsetting log channels (Owner or administrator)"""
         await ctx.send_help(ctx.command)
 
+    # TODO: remove flag commands
     @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
     @flags.add_flag("--modlogs", type=discord.TextChannel)
