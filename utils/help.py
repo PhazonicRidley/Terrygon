@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 from . import custom_views
-from typing import Dict, Union, List, Mapping, Optional, Any
+from typing import Dict, Union, Any
 
 
 # formatting inspired by rdanny and kurisu
@@ -19,15 +19,17 @@ class TerryHelp(commands.HelpCommand):
         paginator = HelpPaginator(self.context, dict(mapping), 'bot', title="Help!", description=emb_desc,
                                   color=discord.Color.purple())
 
+        # use a loop to stall
         await paginator.start()
-        return
-        while cog_help_tuple[1]:
-            cog = self.context.bot.cogs[cog_help_tuple[1]]
-            paginator.embed_properties.update(title=f"Help for {cog_help_tuple[1]} cog.", description=cog.description)
-            paginator.entries = cog.get_commands()
-            paginator.mode = 'cog'
-            cog_help_tuple = await paginator.start(message=cog_help_tuple[0])
-            print("While loop complete")
+
+    async def send_cog_help(self, cog: commands.Cog, /):
+        """Sends cog help"""
+        await create_cog_paginator(self.context, cog)
+
+    async def send_command_help(self, command: commands.Command[Any, ..., Any], /):
+        """Sends command help"""
+        embed = discord.Embed(title=f"Help for {command.name}", description=command.short_doc, colour=discord.Color.purple())
+        await self.get_destination().send(embed=embed)
 
 
 class HelpPaginator(custom_views.BaseButtonPaginator):
@@ -38,7 +40,8 @@ class HelpPaginator(custom_views.BaseButtonPaginator):
         self.embed_properties = embed_properties
         cog_data = dict(zip(ctx.bot.cogs.keys(), [x.description for x in ctx.bot.cogs.values() if x]))
         self.dropdown = HelpSelect(cog_data)
-        self.switch_to_cog = None  # to be called in selector, terrible workaround for not nesting stack frames in said selector function
+        self.switch_to_cog = None  # to be called in selector, terrible workaround for not nesting stack frames in
+        # said selector function
         super().__init__(ctx, entries=entries, per_page=3)
 
     async def format_page(self, entries) -> discord.Embed:
@@ -55,7 +58,7 @@ class HelpPaginator(custom_views.BaseButtonPaginator):
         elif self.mode == 'cog':
             for command in entries:
                 # TODO: fix formatting
-                embed.add_field(name=f"__**{command.name}**__name",
+                embed.add_field(name=f"__**{command.name}**__",
                                 value=command.short_doc if command.short_doc else "No description", inline=False)
 
         return embed
@@ -80,7 +83,22 @@ class HelpSelect(discord.ui.Select):
         super().__init__(placeholder=placeholder, options=options, min_values=1, max_values=1)
 
     async def callback(self, interaction: discord.Interaction):
-        """Code to run for the drop down"""
+        """Code to run for the drop-down"""
         cog_name = self.values[0]
-        self.view.switch_to_cog = cog_name
-        return
+        await create_cog_paginator(self.view.ctx, cog_name)
+        await self.view.stop_paginator(interaction, to_delete_msg=True)
+
+
+async def create_cog_paginator(ctx: commands.Context, cog: Union[commands.Cog, str]):
+    """Creates and runs the cog paginator"""
+    if isinstance(cog, str):
+        cog = ctx.bot.cogs[cog]
+
+    if cog is None:
+        raise AttributeError("Invalid cog passed.")
+
+    command_list = cog.get_commands()
+    emb_desc = f"{cog.description}\nUse `{ctx.prefix}help [command]` for more information on a command."
+    cog_paginator = HelpPaginator(ctx, command_list, "cog", title=f"Help for {cog.qualified_name}",
+                                  description=emb_desc, color=discord.Color.purple())
+    await cog_paginator.start(have_select=False)

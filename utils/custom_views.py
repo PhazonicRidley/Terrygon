@@ -20,7 +20,8 @@ class BaseButtonPaginator(discord.ui.View):
         A list of pages which contain all entries for that page.
     """
 
-    def __init__(self, ctx: commands.Context, *, entries: Union[List[Any], Dict[Any, Any]], per_page: int = 6, delete_msg: bool = False) -> None:
+    def __init__(self, ctx: commands.Context or discord.Message, *, entries: Union[List[Any], Dict[Any, Any]],
+                 per_page: int = 6, delete_msg: bool = False) -> None:
         super().__init__(timeout=180)
         if isinstance(entries, list):
             self.entries = entries
@@ -33,7 +34,7 @@ class BaseButtonPaginator(discord.ui.View):
         self.to_delete_msg = delete_msg
         self.pages = list(self._format_pages(self.entries, per_page))
         self._max_page = len(self.pages)
-    
+
     @classmethod
     def process_dictionary(cls, entries: dict[Any, Any]) -> list[tuple]:
         """Splits a dictionary to be wrapped by a list"""
@@ -102,7 +103,8 @@ class BaseButtonPaginator(discord.ui.View):
         if interaction.user == self.ctx.author:
             return True
 
-        await interaction.response.send_message(f"This menu can only be controlled by {self.ctx.author}", ephemeral=True)
+        await interaction.response.send_message(f"This menu can only be controlled by {self.ctx.author}",
+                                                ephemeral=True)
         return False
 
     def get_page(self, idx: int) -> List[Any]:
@@ -141,9 +143,16 @@ class BaseButtonPaginator(discord.ui.View):
 
     @discord.ui.button(emoji='\U000023f9', style=discord.ButtonStyle.red, custom_id="stop")
     async def on_stop(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        """Stops paginator from button"""
+        await self.stop_paginator(interaction)
+
+    async def stop_paginator(self, interaction: discord.Interaction, to_delete_msg: bool =None):
+        """Stops the paginator asynchronously"""
+        if not to_delete_msg:
+            to_delete_msg = self.to_delete_msg
         self.clear_items()
         self.stop()
-        if self.to_delete_msg:
+        if to_delete_msg:
             return await interaction.message.delete()
         else:
             return await interaction.response.edit_message(view=self)
@@ -167,6 +176,7 @@ class BaseButtonPaginator(discord.ui.View):
 
 class PaginatorSelector(discord.ui.Select):
     """A select menu for jumping to different pages"""
+
     def __init__(self, pages: List[Any]):
         # create selector options
         options = []
@@ -194,7 +204,8 @@ class PaginatorSelector(discord.ui.Select):
 
 # Can be used as so
 class BtnPaginator(BaseButtonPaginator):
-    def __init__(self, ctx: commands.Context, entries: Union[List[Any], Dict[Any, Any]], *, per_page: int = 6, **embed_properties):
+    def __init__(self, ctx: commands.Context, entries: Union[List[Any], Dict[Any, Any]], *, per_page: int = 6,
+                 **embed_properties):
         super().__init__(ctx, entries=entries, per_page=per_page)
         self.embed_properties = embed_properties
         self.add_item(PaginatorSelector(self.pages))
@@ -232,5 +243,3 @@ class Confirmation(discord.ui.View):
         self.value = False
         self.stop()
         return await interaction.response.edit_message(content=self.cancel_text, view=self)
-
-
