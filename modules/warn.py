@@ -381,7 +381,7 @@ class Warn(commands.Cog):
 
         if len(warn_records) == 0:
             embed = discord.Embed(color=member.color)
-            embed.set_author(name=f"Warns for {member.name}#{member.discriminator}", icon_url=member.avatar.url)
+            embed.set_author(name=f"Warns for {member.name}#{member.discriminator}", icon_url=member.display_avatar.url)
             embed.description = "There are none!"
             return await ctx.send(embed=embed)
 
@@ -390,7 +390,7 @@ class Warn(commands.Cog):
             user_warns.append(DbWarn(*warn))
 
         embed = discord.Embed(color=member.color)
-        embed.set_author(name=f"List of warns for {member.name}#{member.discriminator}:", icon_url=member.avatar.url)
+        embed.set_author(name=f"List of warns for {member.name}#{member.discriminator}:", icon_url=member.display_avatar.url)
 
         for num, warn in enumerate(user_warns, 1):
             issuer = self.bot.get_user(warn.author_id) if self.bot.get_user(

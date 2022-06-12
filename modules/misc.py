@@ -7,7 +7,7 @@ import string
 from terrygon import read_config
 from utils import checks, common
 from datetime import datetime, timedelta
-import typing
+from typing import Union
 import collections
 from utils.custom_views import Confirmation
 
@@ -32,21 +32,21 @@ class Misc(commands.Cog):
     async def membercount(self, ctx: commands.Context):
         """Prints member count"""
         bots = 0
-        for member in ctx.guild.members:
+        for member in guild.members:
             if member.bot:
                 bots += 1
 
-        await ctx.send(f"{ctx.guild.name} has {ctx.guild.member_count - bots} members and {bots} bots")
+        await ctx.send(f"{guild.name} has {guild.member_count - bots} members and {bots} bots")
 
     @commands.guild_only()
     @commands.command(aliases=['currentperms'])
-    async def currentpermissions(self, ctx: commands.Context, item: typing.Union[discord.Member, discord.Role] = None):
+    async def currentpermissions(self, ctx: commands.Context, item: Union[discord.Member, discord.Role] = None):
         """Lists a user's or a role's current permissions"""
         if item is None:
             item = ctx.author
 
         perm_names = []
-        embed = discord.Embed(title=f"Permissions on {ctx.guild.name} for {type(item).__name__.lower()} {item.name}",
+        embed = discord.Embed(title=f"Permissions on {guild.name} for {type(item).__name__.lower()} {item.name}",
                               colour=item.color.value)
         perm_list = item.guild_permissions if isinstance(item, discord.Member) else item.permissions
         for name, value in perm_list:
@@ -55,10 +55,10 @@ class Misc(commands.Cog):
                 perm_names.append(name)
 
         if isinstance(item, discord.Member):
-            highest_role_str = f"The highest role for {item}, {item.top_role.name}, is in position {item.top_role.position} out of {len(ctx.guild.roles) - 1}"
+            highest_role_str = f"The highest role for {item}, {item.top_role.name}, is in position {item.top_role.position} out of {len(guild.roles) - 1}"
 
         else:
-            highest_role_str = f"This role is in position {item.position} out of {len(ctx.guild.roles) - 1}"
+            highest_role_str = f"This role is in position {item.position} out of {len(guild.roles) - 1}"
 
         embed.add_field(name=f"Permission value: {perm_list.value}", value=", ".join(perm_names), inline=False)
         embed.add_field(name="Highest role location", value=highest_role_str, inline=False)
@@ -70,7 +70,7 @@ class Misc(commands.Cog):
         return await ctx.send(f":ping_pong:! Pong! Response time: {round(self.bot.latency * 1000, 2)} ms")
 
     @commands.command(aliases=['ui', 'onion'])
-    async def userinfo(self, ctx: commands.Context, member: typing.Union[discord.Member, int, str] = None):
+    async def userinfo(self, ctx: commands.Context, member: Union[discord.Member, int, str] = None):
         """Prints userinfo on a member"""
         in_server = None
         if member is None:
@@ -92,12 +92,12 @@ class Misc(commands.Cog):
             embed = discord.Embed(title=f'**Userinfo for {user.name}#{str(user.discriminator)}**',
                                   color=user.color.value)
             embed.description = f"""**User's ID:** {str(user.id)} \n **Join date:** {str(user.joined_at)} \n**Created on** {str(user.created_at)}\n **Current Status:** {str(user.status).upper() if str(user.status).lower() == "dnd" else str(user.status).title()}\n **User Activity:**: {str(user.activity)} \n **Default Profile Picture:** {str(user.default_avatar).title()}\n **Current Display Name:** {user.display_name}\n**Nitro Boost Date:** {str(user.premium_since)}\n **Current Top Role:** {str(user.top_role)}\n **Bot** {user.bot}\n **Color:** {str(hex(user.color.value)[2:]).zfill(6)}"""
-            embed.set_thumbnail(url=user.avatar.url)
+            embed.set_thumbnail(url=user.display_avatar.url)
             await ctx.send(embed=embed)
 
         elif not in_server:
             try:
-                ban = await ctx.guild.fetch_ban(user)
+                ban = await guild.fetch_ban(user)
             except discord.NotFound:
                 ban = None
 
@@ -105,11 +105,11 @@ class Misc(commands.Cog):
                                   color=common.gen_color(user.id))
             embed.description = f"**User's ID:** {str(user.id)} \n **Default Profile Picture:** {str(user.default_avatar)} \n  **Created on:** {str(user.created_at)}\n **Bot:** {user.bot}\n {f'**Banned, reason:** {ban.reason}' if ban is not None else ''}"
             embed.set_footer(text=f'{user.name}#{user.discriminator} is not in your server.')
-            embed.set_thumbnail(url=user.avatar.url)
+            embed.set_thumbnail(url=user.display_avatar.url)
             await ctx.send(embed=embed)
 
     @commands.command(aliases=['avi'])
-    async def avatar(self, ctx: commands.Context, member: typing.Union[discord.Member, int, str] = None):
+    async def avatar(self, ctx: commands.Context, member: Union[discord.Member, int, str] = None):
         """Gets a user's avatar"""
         in_server = None
         if member is None:
@@ -151,7 +151,7 @@ class Misc(commands.Cog):
         msg_content = message.content[len(ctx.prefix) + len(ctx.command.name) + 1:]
         msg_content = msg_content.lstrip('r ')
 
-        file_list: typing.List[discord.File] = []
+        file_list: list[discord.File] = []
         for attachment in message.attachments:
             file_list.append(await attachment.to_file(spoiler=True))
 
@@ -170,64 +170,80 @@ class Misc(commands.Cog):
 
     @commands.guild_only()
     @commands.command(name="guildinfo", aliases=['serverinfo', 'server'])
-    async def guild_info(self, ctx: commands.Context):
+    async def guild_info(self, ctx: commands.Context, guild: Union[discord.Guild, str, int] = None):
         """Posts guild info"""
-        embed = discord.Embed(title=f"**Server info for: {ctx.guild.name}**", colour=common.gen_color(ctx.guild.id))
-        if ctx.guild.icon:
-            embed.set_thumbnail(url=ctx.guild.icon_url)
+        if guild is None:
+            guild = ctx.guild
+
+        elif not isinstance(guild, discord.Guild):
+            guild = await commands.GuildConverter().convert(ctx, str(guild))  # TODO: string approximation
+
+        embed = discord.Embed(title=f"**Server info for: {guild.name}**", colour=common.gen_color(guild.id))
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
 
         approval_system = "enabled" if await self.bot.db.fetchval(
-            "SELECT approval_system FROM guild_settings WHERE guild_id = $1", ctx.guild.id) else "disabled"
+            "SELECT approval_system FROM guild_settings WHERE guild_id = $1", guild.id) else "disabled"
+
+        # check if there are voice channels, if there are, get their region
+        if len(guild.voice_channels) > 0:
+            voice_region = guild.voice_channels[0].rtc_region
+            if not voice_region:
+                voice_region = "Not a community"
+            region_str = f":soccer: **__Region__:** {voice_region}\n"
+
+        else:
+            region_str = ""
 
         embed.add_field(
             name="**Stats**",
-            value=f":slight_smile: **__Number of emotes:__** {len(ctx.guild.emojis)}\n:soccer: **__Region__:** {str(ctx.guild.region).title()}\n:white_check_mark: **__Verification Level:__** {str(ctx.guild.verification_level).title()}\n{self.bot.terrygon_logger.emotes['creationdate']} **__Creation:__** {strftime(str(ctx.guild.created_at))}\n:eyes: **__Approval System:__** {approval_system.title()}\n{self.bot.terrygon_logger.emotes['id']} **__Guild ID:__** {ctx.guild.id}\n",
+            value=f":slight_smile: **__Number of emotes:__** {len(guild.emojis)}\n{region_str}:white_check_mark: **__Verification Level:__** {str(guild.verification_level).title()}\n{self.bot.terrygon_logger.emotes['creationdate']} **__Creation:__** {strftime(str(guild.created_at))}\n:eyes: **__Approval System:__** {approval_system.title()}\n{self.bot.terrygon_logger.emotes['id']} **__Guild ID:__** {guild.id}\n",
             inline=False
         )
         # adapted from https://gitlab.com/lightning-bot/Lightning/-/blob/v3/cogs/meta.py#L607
         # get member info
-        memberStatusCollection = collections.Counter()
-        for member in ctx.guild.members:
+        member_status_collection = collections.Counter()
+        for member in guild.members:
             if member.bot:
-                memberStatusCollection['bot'] += 1
+                member_status_collection['bot'] += 1
             else:
-                memberStatusCollection[str(member.status)] += 1
+                member_status_collection[str(member.status)] += 1
 
         embed.add_field(name="**Member Info**",
-                        value=f"<:online:720369347440410697> **__Online:__** {memberStatusCollection['online']}\n<:idle:720369314494021663> **__Idle:__** {memberStatusCollection['idle']}\n<:dnd:720369337109577739> **__Do not disturb:__** {memberStatusCollection['dnd']}\n<:offline:720369327915794552> **__Offline:__** {memberStatusCollection['offline']}\n:robot: **__Bots:__** {memberStatusCollection['bot']}\n:palms_up_together: **__Total:__** {ctx.guild.member_count}\n:crown: **__Owner:__** {ctx.guild.owner}",
+                        value=f"<:online:720369347440410697> **__Online:__** {member_status_collection['online']}\n<:idle:720369314494021663> **__Idle:__** {member_status_collection['idle']}\n<:dnd:720369337109577739> **__Do not disturb:__** {member_status_collection['dnd']}\n<:offline:720369327915794552> **__Offline:__** {member_status_collection['offline']}\n:robot: **__Bots:__** {member_status_collection['bot']}\n:palms_up_together: **__Total:__** {guild.member_count}\n:crown: **__Owner:__** {guild.owner}",
                         inline=False)
 
         # get role info
         async with self.bot.db.acquire() as conn:
-            mod_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT mod_role FROM roles WHERE guild_id = $1", ctx.guild.id))
+            mod_role = guild.get_role(
+                await conn.fetchval("SELECT mod_role FROM roles WHERE guild_id = $1", guild.id))
             mod_role = "No Mod role set" if mod_role is None else mod_role
 
-            admin_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT admin_role FROM roles WHERE guild_id = $1", ctx.guild.id))
+            admin_role = guild.get_role(
+                await conn.fetchval("SELECT admin_role FROM roles WHERE guild_id = $1", guild.id))
             admin_role = "No Admin role set" if admin_role is None else admin_role
 
-            owner_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT owner_role FROM roles WHERE guild_id = $1", ctx.guild.id))
+            owner_role = guild.get_role(
+                await conn.fetchval("SELECT owner_role FROM roles WHERE guild_id = $1", guild.id))
             owner_role = "No Owner role set" if owner_role is None else owner_role
 
-            muted_role = ctx.guild.get_role(
-                await conn.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", ctx.guild.id))
+            muted_role = guild.get_role(
+                await conn.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", guild.id))
             muted_role = "No Muted role set" if muted_role is None else muted_role
             if approval_system == 'enabled':
-                approval_role = ctx.guild.get_role(
-                    await conn.fetchval("SELECT approved_role FROM roles WHERE guild_id = $1", ctx.guild.id))
+                approval_role = guild.get_role(
+                    await conn.fetchval("SELECT approved_role FROM roles WHERE guild_id = $1", guild.id))
             else:
                 approval_role = "Approval System Disabled"
 
         embed.add_field(name="**Role Info**",
-                        value=f":shield: **__Number Of Roles:__** {len(ctx.guild.roles)}\n:helicopter: **__Mod Role:__** {mod_role}\n:hammer: **__Admin Role:__** {admin_role}\n:crown: **__Owner Role:__** {owner_role}\n:+1: **__Approval Role:__** {approval_role}\n:mute: **__Muted Role:__** {muted_role}",
+                        value=f":shield: **__Number Of Roles:__** {len(guild.roles)}\n:helicopter: **__Mod Role:__** {mod_role}\n:hammer: **__Admin Role:__** {admin_role}\n:crown: **__Owner Role:__** {owner_role}\n:+1: **__Approval Role:__** {approval_role}\n:mute: **__Muted Role:__** {muted_role}",
                         inline=False)
 
         # channel info
 
         embed.add_field(name="**Channel Info**",
-                        value=f":hash: **__Number of text channels:__** {len(ctx.guild.text_channels)}\n:loud_sound: **__Number of voice channels:__** {len(ctx.guild.voice_channels)}\n",
+                        value=f":hash: **__Number of text channels:__** {len(guild.text_channels)}\n:loud_sound: **__Number of voice channels:__** {len(guild.voice_channels)}\n",
                         inline=False)
 
         await ctx.send(embed=embed)
@@ -392,7 +408,7 @@ class Misc(commands.Cog):
             return await ctx.send(embed=e, file=color_file)
 
     @commands.command(name="emoji", aliases=['e'])  # TODO: support unicode emojis and fuzz for emotes
-    async def emoji(self, ctx: commands.Context, emote: typing.Union[str, int, discord.Emoji]):
+    async def emoji(self, ctx: commands.Context, emote: Union[str, int, discord.Emoji]):
         """Prints a big image of a discord emoji"""
         try:
             emoji_obj = await commands.EmojiConverter().convert(ctx, emote)
