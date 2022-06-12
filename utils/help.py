@@ -15,8 +15,8 @@ class TerryHelp(commands.HelpCommand):
 
     async def send_bot_help(self, mapping, /):
         """Sends bot help"""
-        emb_desc = f"{self.context.bot.description}\n\nUse `{self.context.prefix}help [command]` for more information on a command.\nYou can also use `{self.context.prefix}help [category]` for more information on a category."
-        paginator = HelpPaginator(self.context, dict(mapping), 'bot', title="Help!", description=emb_desc,
+        emb_desc = get_bot_description(self.context)
+        paginator = HelpPaginator(self.context, dict(mapping), 'bot', self, title="Help!", description=emb_desc,
                                   color=discord.Color.purple())
 
         # use a loop to stall
@@ -24,23 +24,51 @@ class TerryHelp(commands.HelpCommand):
 
     async def send_cog_help(self, cog: commands.Cog, /):
         """Sends cog help"""
-        await create_cog_paginator(self.context, cog)
+        command_list = cog.get_commands()
+        emb_desc = get_cog_description(self.context, cog)
+        cog_paginator = HelpPaginator(self.context, command_list, "cog", self, title=f"Help for {cog.qualified_name}",
+                                      description=emb_desc, color=discord.Color.purple())
+        await cog_paginator.start()
 
     async def send_command_help(self, command: commands.Command[Any, ..., Any], /):
         """Sends command help"""
-        embed = discord.Embed(title=f"Help for {command.name}", description=command.short_doc, colour=discord.Color.purple())
+        if len(command.parents) == 0:
+            emb_title = f"Help for `{command.name} {command.signature}`"
+        else:
+            parents = " ".join([c.name for c in command.parents])
+            emb_title = f"Help for `{parents} {command.name} {command.signature}`"
+        embed = discord.Embed(title=emb_title, description=command.short_doc,
+                              colour=discord.Color.purple())
+
+        if len(command.aliases) > 0:
+            embed.add_field(name="Aliases", value=", ".join(command.aliases))
+        await self.get_destination().send(embed=embed)
+
+    async def send_group_help(self, group: commands.Group[Any, ..., Any], /) -> None:
+        """Sends command group help"""
+        group_commands = group.commands
+        embed = discord.Embed(title=f"Help for `{group.name}`", description=group.short_doc)
+        val_str = ""
+        for command in group_commands:
+            val_str += f"""`{self.context.prefix}{command.name} {f"[{' | '.join(command.aliases)}]" if len(command.aliases) > 0 else ""}` - {command.short_doc}\n"""
+
+        embed.add_field(name="Subcommands", value=val_str, inline=False)
+        if len(group.aliases) > 0:
+            embed.add_field(name="aliases", value=", ".join(group.aliases), inline=False)
+
         await self.get_destination().send(embed=embed)
 
 
 class HelpPaginator(custom_views.BaseButtonPaginator):
     """Pagination over commands and cogs, clone of BtnPaginator with different formatting"""
 
-    def __init__(self, ctx: commands.Context, entries: Union[list, dict], mode: str, **embed_properties):
+    def __init__(self, ctx: commands.Context, entries: Union[list, dict], mode: str, help_cmd: TerryHelp,
+                 **embed_properties):
         self.mode = mode
+        self.help_cmd = help_cmd
         self.embed_properties = embed_properties
         cog_data = dict(zip(ctx.bot.cogs.keys(), [x.description for x in ctx.bot.cogs.values() if x]))
         self.dropdown = HelpSelect(cog_data)
-        self.switch_to_cog = None  # to be called in selector, terrible workaround for not nesting stack frames in
         # said selector function
         super().__init__(ctx, entries=entries, per_page=3)
 
@@ -68,7 +96,17 @@ class HelpPaginator(custom_views.BaseButtonPaginator):
         if have_select:
             self.add_item(self.dropdown)
         await super().start(message=message)
-        return self.ctx.message, self.switch_to_cog  # prob not an amazing way of doing this
+
+    async def edit(self, new_entries: Union[list, dict], interaction: discord.Interaction, **embed_properties):
+        """Updates a paginator's entries"""
+        if isinstance(new_entries, dict):
+            new_entries = custom_views.BaseButtonPaginator.process_dictionary(new_entries)
+        self.entries = new_entries
+        self.pages = self.create_pages(new_entries, self.per_page)
+        embed = await self.format_page(entries=self._get_entries(index=self.min_page))
+        embed.title = embed_properties['title']
+        embed.description = embed_properties['description']
+        await interaction.response.edit_message(embed=embed)
 
 
 class HelpSelect(discord.ui.Select):
@@ -76,7 +114,8 @@ class HelpSelect(discord.ui.Select):
 
     def __init__(self, cog_data: Dict[str, str], placeholder="What cog would you like help on?"):
         self.cog_data = cog_data  # name : description
-        options = []
+        options = [
+            discord.SelectOption(label="Main Help", value="mainhelp", description="See full bot help", emoji='🔍')]
         for name, description in cog_data.items():
             options.append(discord.SelectOption(label=name, value=name, description=description, emoji='🔍'))
 
@@ -85,20 +124,32 @@ class HelpSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         """Code to run for the drop-down"""
         cog_name = self.values[0]
-        await create_cog_paginator(self.view.ctx, cog_name)
-        await self.view.stop_paginator(interaction, to_delete_msg=True)
+        if cog_name == "mainhelp":
+            self.view.mode = 'bot'
+            help_cmd = self.view.help_cmd
+            new_entries = dict(help_cmd.get_bot_mapping())
+            emb_title = "Help!"
+            emb_desc = get_bot_description(self.view.ctx)
+
+        else:
+            cog = self.view.ctx.bot.cogs[cog_name]
+            self.view.mode = 'cog'
+            new_entries = cog.get_commands()
+            emb_title = f"Help for {cog_name}"
+            emb_desc = get_cog_description(self.view.ctx, cog)
+
+        await self.view.edit(new_entries, interaction, title=emb_title, description=emb_desc)
 
 
-async def create_cog_paginator(ctx: commands.Context, cog: Union[commands.Cog, str]):
-    """Creates and runs the cog paginator"""
-    if isinstance(cog, str):
-        cog = ctx.bot.cogs[cog]
+# util functions
+def get_bot_description(context: commands.Context) -> str:
+    """Gets Bot's description and prefix from invocation"""
+    emb_desc = f"{context.bot.description}\n\nUse `{context.prefix}help [command]` for more information on a " \
+               f"command.\nYou can also use `{context.prefix}help [category]` for more information on a category. "
+    return emb_desc
 
-    if cog is None:
-        raise AttributeError("Invalid cog passed.")
 
-    command_list = cog.get_commands()
-    emb_desc = f"{cog.description}\nUse `{ctx.prefix}help [command]` for more information on a command."
-    cog_paginator = HelpPaginator(ctx, command_list, "cog", title=f"Help for {cog.qualified_name}",
-                                  description=emb_desc, color=discord.Color.purple())
-    await cog_paginator.start(have_select=False)
+def get_cog_description(context: commands.Context, cog: commands.Cog) -> str:
+    """Gets a cog's description"""
+    emb_desc = f"{cog.description}\nUse `{context.prefix}help [command]` for more information on a command."
+    return emb_desc

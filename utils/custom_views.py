@@ -32,8 +32,15 @@ class BaseButtonPaginator(discord.ui.View):
         self._min_page = 1
         self._current_page = 1
         self.to_delete_msg = delete_msg
-        self.pages = list(self._format_pages(self.entries, per_page))
-        self._max_page = len(self.pages)
+        self._max_page = None
+        self.pages = self.create_pages(self.entries, per_page)
+        self.message = None
+
+    def create_pages(self, entries: list, per_page) -> list:
+        """Creates the pages"""
+        pages = list(self._format_pages(entries, per_page))
+        self._max_page = len(pages)
+        return pages
 
     @classmethod
     def process_dictionary(cls, entries: dict[Any, Any]) -> list[tuple]:
@@ -170,8 +177,9 @@ class BaseButtonPaginator(discord.ui.View):
                     child.disabled = True
         if message:
             await message.edit(embed=embed, view=self)
+            self.message = message
         else:
-            await self.ctx.reply(embed=embed, view=self)
+            self.message = await self.ctx.reply(embed=embed, view=self)
 
 
 class PaginatorSelector(discord.ui.Select):
