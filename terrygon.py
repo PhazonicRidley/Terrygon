@@ -83,7 +83,8 @@ class Terrygon(commands.AutoShardedBot):
         self.console_output_log = setup_logger(name="console_output_log", logfile="data/logs/console_output.log",
                                                maxBytes=100000)
 
-        help_cmd = TerryHelp(dm_help=None, dm_help_threshold=800)
+        #help_cmd = TerryHelp(dm_help=None, dm_help_threshold=800)
+        help_cmd = help.TerryHelp()
         super().__init__(command_prefix=_callable_prefix, description=read_config("info", "description"),
                          max_messages=10000,
                          help_command=help_cmd,
