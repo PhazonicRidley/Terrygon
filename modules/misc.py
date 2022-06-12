@@ -174,14 +174,24 @@ class Misc(commands.Cog):
         """Posts guild info"""
         embed = discord.Embed(title=f"**Server info for: {ctx.guild.name}**", colour=common.gen_color(ctx.guild.id))
         if ctx.guild.icon:
-            embed.set_thumbnail(url=ctx.guild.icon_url)
+            embed.set_thumbnail(url=ctx.guild.icon.url)
 
         approval_system = "enabled" if await self.bot.db.fetchval(
             "SELECT approval_system FROM guild_settings WHERE guild_id = $1", ctx.guild.id) else "disabled"
 
+        # check if there are voice channels, if there are, get their region
+        if len(ctx.guild.voice_channels) > 0:
+            voice_region = ctx.guild.voice_channels[0].rtc_region
+            if not voice_region:
+                voice_region = "Not a community"
+            region_str = f":soccer: **__Region__:** {voice_region}\n"
+
+        else:
+            region_str = ""
+
         embed.add_field(
             name="**Stats**",
-            value=f":slight_smile: **__Number of emotes:__** {len(ctx.guild.emojis)}\n:soccer: **__Region__:** {str(ctx.guild.region).title()}\n:white_check_mark: **__Verification Level:__** {str(ctx.guild.verification_level).title()}\n{self.bot.terrygon_logger.emotes['creationdate']} **__Creation:__** {strftime(str(ctx.guild.created_at))}\n:eyes: **__Approval System:__** {approval_system.title()}\n{self.bot.terrygon_logger.emotes['id']} **__Guild ID:__** {ctx.guild.id}\n",
+            value=f":slight_smile: **__Number of emotes:__** {len(ctx.guild.emojis)}\n{region_str}:white_check_mark: **__Verification Level:__** {str(ctx.guild.verification_level).title()}\n{self.bot.terrygon_logger.emotes['creationdate']} **__Creation:__** {strftime(str(ctx.guild.created_at))}\n:eyes: **__Approval System:__** {approval_system.title()}\n{self.bot.terrygon_logger.emotes['id']} **__Guild ID:__** {ctx.guild.id}\n",
             inline=False
         )
         # adapted from https://gitlab.com/lightning-bot/Lightning/-/blob/v3/cogs/meta.py#L607
