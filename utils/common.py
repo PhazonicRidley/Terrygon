@@ -1,7 +1,5 @@
 import re
 import random
-import string
-
 import discord
 import io
 from PIL import Image

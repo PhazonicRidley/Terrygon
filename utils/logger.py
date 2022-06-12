@@ -188,7 +188,7 @@ class TerrygonLogger:
         else:
             logging_msg = f"{self.emotes['clear']} **__Cleared Warn__** {member.mention} ({member}) had warn id {warn.id} removed by {author.mention} ({author} | {author.id})\n{self.emotes['id']} User ID: {member.id}"
             embed = discord.Embed(color=0xe6ff33)
-            embed.set_author(name=f"{member}", icon_url=member.avatar_url)
+            embed.set_author(name=f"{member}", icon_url=member.display_avatar.url)
             embed.add_field(name=f"\n\n{warn.time_stamp}",
                             value=f"{warn.reason if warn.reason is not None else 'No reason given for warn'}\n Issuer: {self.bot.get_user(warn.author_id) if self.bot.get_user(warn.author_id) is not None else self.bot.fetch_user(warn.author_id)}")
         try:
