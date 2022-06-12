@@ -5,6 +5,8 @@ import io
 from PIL import Image
 import webcolors
 from discord.ext import commands
+from fuzzywuzzy import fuzz
+from typing import Union
 
 
 # credit https://github.com/nh-server/Kurisu/blob/port/utils/utils.py#L30
@@ -111,3 +113,95 @@ def parse_rgb(input_str: str) -> tuple or None:
 def convert_c_to_f(celsius: int) -> int:
     """Converts celsius to fahrenheit"""
     return round((celsius * 9 / 5) + 32)
+
+
+def pattern_match_strings(inp_str: str, str_lst: list[str]) -> (str, str):
+    """Pattern matches a string to a list of other strings"""
+    if len(str_lst) == 0:
+        raise AttributeError("Cannot process over an empty list")
+
+    if inp_str in str_lst:
+        return inp_str
+
+    match = None
+    guesses = {}
+    inp_str_no_white_space = re.sub(r"[^\da-zA-Z ]", "", inp_str)
+    for s in str_lst:
+        # regex checking
+        s_no_white_space = re.sub(r"[^\da-zA-Z ]", "", s)
+        res = re.search(inp_str_no_white_space, s_no_white_space, re.I)
+        if res:
+            match = s
+            break
+        # fuzzing
+        chars = list(s_no_white_space)
+        full_ratio = fuzz.ratio(inp_str_no_white_space, chars)
+        partial_ratio = fuzz.partial_ratio(inp_str_no_white_space, chars)
+        if full_ratio >= 70 or partial_ratio >= 70:
+            match = s
+            break
+        elif full_ratio >= 27 or partial_ratio >= 3:
+            guesses[s] = (full_ratio, partial_ratio)
+
+    if match:
+        return match, "match"
+    elif guesses:
+        print("Running guesses")
+        output = "Unable to match directly, some possible suggestions are\n"
+        sorted_guesses = order_guesses(guesses, 'full')
+        if len(sorted_guesses) == 1:
+            return sorted_guesses[0], "guesses"
+        for guess in sorted_guesses:
+            output += f"- {guess}\n"
+        return output, "guesses"
+    else:
+        raise ValueError("Unable to interpret input string given list")
+
+
+def order_guesses(guesses: dict[str, (int, int)], mode: str):
+    """Orders the guesses by fuzzing ratios or partial ratios"""
+    output = None
+    if mode == 'full':
+        output = sorted(guesses.items(), key=lambda x: x[1][0], reverse=True)[0:5]
+    elif mode == 'partial':
+        output = sorted(guesses.items(), key=lambda x: x[1][1], reverse=True)[0:5]
+
+    if not output:  # sanity check
+        raise ValueError("WHAT? output is none")
+    output = [x[0] for x in output]
+    print(output)
+    return output
+
+
+async def validate_user(ctx: commands.Context,
+                        member: Union[discord.Member, int, str]) -> discord.Member or discord.User:
+    """Validates a user"""
+    if isinstance(member, discord.Member):
+        return member
+    user_str = None
+    if isinstance(member, str):
+        try:
+            user_str, mode = pattern_match_strings(member, [u.name for u in ctx.bot.users])
+        except ValueError:
+            user_str = None
+            mode = None
+
+        if mode == "guesses":
+            await ctx.send(user_str)
+            return None
+
+    if user_str:
+        member = user_str
+
+    # check for member
+    try:
+        user = await commands.MemberConverter().convert(ctx, str(member))
+    except commands.CommandError:
+        # try for user
+        try:
+            user = await commands.UserConverter().convert(ctx, str(member))
+        except commands.CommandError:
+            await ctx.send("💢 I cannot find that user")
+            return None
+
+    return user
