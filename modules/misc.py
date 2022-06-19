@@ -32,11 +32,11 @@ class Misc(commands.Cog):
     async def membercount(self, ctx: commands.Context):
         """Prints member count"""
         bots = 0
-        for member in guild.members:
+        for member in ctx.guild.members:
             if member.bot:
                 bots += 1
 
-        await ctx.send(f"{guild.name} has {guild.member_count - bots} members and {bots} bots")
+        await ctx.send(f"{ctx.guild.name} has {ctx.guild.member_count - bots} members and {bots} bots")
 
     @commands.guild_only()
     @commands.command(aliases=['currentperms'])
@@ -46,7 +46,7 @@ class Misc(commands.Cog):
             item = ctx.author
 
         perm_names = []
-        embed = discord.Embed(title=f"Permissions on {guild.name} for {type(item).__name__.lower()} {item.name}",
+        embed = discord.Embed(title=f"Permissions on {ctx.guild.name} for {type(item).__name__.lower()} {item.name}",
                               colour=item.color.value)
         perm_list = item.guild_permissions if isinstance(item, discord.Member) else item.permissions
         for name, value in perm_list:
@@ -55,10 +55,10 @@ class Misc(commands.Cog):
                 perm_names.append(name)
 
         if isinstance(item, discord.Member):
-            highest_role_str = f"The highest role for {item}, {item.top_role.name}, is in position {item.top_role.position} out of {len(guild.roles) - 1}"
+            highest_role_str = f"The highest role for {item}, {item.top_role.name}, is in position {item.top_role.position} out of {len(ctx.guild.roles) - 1}"
 
         else:
-            highest_role_str = f"This role is in position {item.position} out of {len(guild.roles) - 1}"
+            highest_role_str = f"This role is in position {item.position} out of {len(ctx.guild.roles) - 1}"
 
         embed.add_field(name=f"Permission value: {perm_list.value}", value=", ".join(perm_names), inline=False)
         embed.add_field(name="Highest role location", value=highest_role_str, inline=False)
@@ -97,7 +97,7 @@ class Misc(commands.Cog):
 
         elif not in_server:
             try:
-                ban = await guild.fetch_ban(user)
+                ban = await ctx.guild.fetch_ban(user)
             except discord.NotFound:
                 ban = None
 
@@ -367,7 +367,7 @@ class Misc(commands.Cog):
                 deleted_reminder = Reminder(r['id'], r['extra']['reminder'], r['expiration'])
 
         if deleted_reminder:
-            await self.bot.db.execute("DELETE FROM timed_jobs WHERE type = 'reminder' AND id = $1", deleted_reminder.id)
+            await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1", deleted_reminder.id)
             await ctx.send("Reminder deleted.")
         else:
             await ctx.send("No reminder by that number found.")
