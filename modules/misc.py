@@ -4,7 +4,6 @@ import discord
 import webcolors
 from discord.ext import commands
 import re
-import string
 from terrygon import read_config
 from utils import checks, common
 from datetime import datetime, timedelta
@@ -40,8 +39,8 @@ class Misc(commands.Cog):
         await ctx.send(f"{ctx.guild.name} has {ctx.guild.member_count - bots} members and {bots} bots")
 
     @commands.guild_only()
-    @commands.command(aliases=['currentperms'])
-    async def currentpermissions(self, ctx: commands.Context, item: Union[discord.Member, discord.Role] = None):
+    @commands.command(name="currentpermissions", aliases=['currentperms', 'perms'])
+    async def current_permissions(self, ctx: commands.Context, item: Union[discord.Member, discord.Role] = None):
         """Lists a user's or a role's current permissions"""
         if item is None:
             item = ctx.author
@@ -68,26 +67,24 @@ class Misc(commands.Cog):
     @commands.command()
     async def ping(self, ctx: commands.Context):
         """Pong!"""
-        return await ctx.send(f":ping_pong:! Pong! Response time: {round(self.bot.latency * 1000, 2)} ms")
+        return await ctx.send(f":ping_pong: Pong! Response time: {round(self.bot.latency * 1000, 2)} ms")
 
     @commands.command(aliases=['ui', 'onion'])
     async def userinfo(self, ctx: commands.Context, member: Union[discord.Member, int, str] = None):
         """Prints userinfo on a member"""
-        in_server = None
-        if member is None:
+        if not member:
             user = ctx.author
+        else:
+            user = await common.validate_user(ctx, member)
+
+        if isinstance(user, discord.Member):
             in_server = True
-        elif isinstance(member, int):
-            try:
-                user = await self.bot.fetch_user(member)
-                in_server = False
-            except discord.NotFound:
-                return await ctx.send("💢 I cannot find that user")
-        elif isinstance(member, discord.Member):
-            user = member
-            in_server = True
-        elif isinstance(member, str):
-            return await ctx.send("💢 I cannot find that user")
+
+        elif isinstance(user, discord.User):
+            in_server = False
+
+        else:
+            return
 
         if in_server:
             embed = discord.Embed(title=f'**Userinfo for {user.name}#{str(user.discriminator)}**',
@@ -112,25 +109,13 @@ class Misc(commands.Cog):
     @commands.command(aliases=['avi'])
     async def avatar(self, ctx: commands.Context, member: Union[discord.Member, int, str] = None):
         """Gets a user's avatar"""
-        in_server = None
-        if member is None:
+        if not member:
             user = ctx.author
-            in_server = True
-        elif isinstance(member, int):
-            try:
-                user = await self.bot.fetch_user(member)
-                in_server = False
-            except discord.NotFound:
-                return await ctx.send("💢 I cannot find that user")
-        elif isinstance(member, discord.Member):
-            user = member
-            in_server = True
-        elif isinstance(member, str):
-            await ctx.send("💢 I cannot find that user")
-            return
+        else:
+            user = await common.validate_user(ctx, member)
 
         embed = discord.Embed(title=f"Avatar for {user.name}#{user.discriminator}",
-                              color=user.color.value if in_server else common.gen_color(user.id))
+                              color=user.color.value if isinstance(user, discord.Member) else common.gen_color(user.id))
         embed.set_image(url=user.display_avatar.url)
         await ctx.send(embed=embed)
 
@@ -427,6 +412,17 @@ class Misc(commands.Cog):
         embed = discord.Embed(color=discord.Color.purple(), title=emoji_obj.name)
         embed.set_image(url=emoji_obj.url)
         await ctx.send(embed=embed)
+
+    @commands.command(name="pt")
+    async def pattern_test(self, ctx: commands.Context, inp_str: str):
+        """Testing"""
+        #  lets check users first
+        lst = [u.name for u in self.bot.users]
+        try:
+            output, mode = common.pattern_match_strings(inp_str, lst)
+        except ValueError:
+            return await ctx.send("Didn't return anything")
+        await ctx.send(output)
 
 
 async def setup(bot):
