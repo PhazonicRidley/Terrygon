@@ -9,7 +9,7 @@ import asyncpg
 import asyncio
 from logzero import setup_logger
 import toml
-from utils import errors, scheduler, checks, custom_views
+from utils import errors, scheduler, checks, custom_views, help
 from utils.logger import TerrygonLogger
 import json
 
