@@ -1,3 +1,4 @@
+import asyncio
 from time import strftime
 import discord
 import webcolors
@@ -361,15 +362,24 @@ class Misc(commands.Cog):
         """Deletes a reminder"""
         records = await self.bot.db.fetch("SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id' = $1",
                                           str(ctx.author.id))
-        deleted_reminder = None
+        deleted_reminder_id = None
+        queued_event = None
         for num, r in enumerate(records, start=1):
             if num == reminder_num:
-                deleted_reminder = Reminder(r['id'], r['extra']['reminder'], r['expiration'])
+                deleted_reminder_id = r['id']
 
-        if deleted_reminder:
-            await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1", deleted_reminder.id)
+        for t in asyncio.all_tasks():
+            if t.get_name() == str(deleted_reminder_id):
+                queued_event = t
+                break
+
+        if queued_event:
+            queued_event.cancel()
+
+        if deleted_reminder_id:
+            await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1", deleted_reminder_id)
             await ctx.send("Reminder deleted.")
-        else:
+        elif not deleted_reminder_id or not queued_event:
             await ctx.send("No reminder by that number found.")
 
     @commands.command(name="getcolor", aliases=['colorinfo'])

@@ -65,15 +65,19 @@ class Scheduler:
             job = await self.get_job()
             if job and job.id not in self._job_stack:
                 self._job_stack.insert(0, job.id)
-                asyncio.create_task(self.process_job(
-                    (job.expiration - datetime.utcnow()).total_seconds(),
-                    self.actions[job.type](**job.extra), job.id), name=str(job.id))
+                try:
+                    asyncio.create_task(self.process_job(
+                        (job.expiration - datetime.utcnow()).total_seconds(),
+                        self.actions[job.type](**job.extra), job.id), name=str(job.id))
+                except asyncio.CancelledError:
+                    pass
 
     async def get_job(self) -> TimedJob or None:
         """Get the latest timed job"""
         assert (self.bot is not None)
         record = await self.bot.db.fetchrow(
-            """SELECT * FROM timed_jobs WHERE "expiration" > CURRENT_DATE OR "expiration" < (CURRENT_DATE + $1::interval) ORDER BY "expiration" 
+            """SELECT * FROM timed_jobs WHERE expiration < NOW() AT TIME ZONE 'utc' OR expiration < (NOW() at TIME ZONE 
+            'utc' + $1::interval) ORDER BY "expiration" 
             LIMIT 1""",
             timedelta(minutes=5))
         return TimedJob(record) if record else None
