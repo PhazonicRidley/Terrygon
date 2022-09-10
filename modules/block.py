@@ -4,7 +4,7 @@ import typing
 import re
 from utils import checks, errors
 
-
+# TODO: re do this entire cog using slash commands
 async def apply_blocks(member: discord.Member, channel: typing.Union[
     discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel], block_list):
     """Applies blocks to a user on join"""
@@ -129,7 +129,7 @@ class Block(commands.Cog):
         """
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "block")
         if mod_bot_protection is not None:
-            await ctx.send(mod_bot_protection)
+            await ctx.reply(mod_bot_protection)
             return
 
         channel = flag_options.get('channel')
@@ -169,7 +169,7 @@ class Block(commands.Cog):
 
         if len(block_list) == 0:
             # this should never trigger
-            await ctx.send("Please use a flag for the permission you would like the block!")
+            await ctx.reply("Please use a flag for the permission you would like the block!")
             await ctx.send_help(ctx.command)
             return
 
@@ -185,10 +185,10 @@ class Block(commands.Cog):
                 channel_overwrites.update(**perm_kwargs[block_type])
                 await channel.set_permissions(member, overwrite=channel_overwrites)
             except discord.Forbidden:
-                return await ctx.send("I do not have permission to block users!")
+                return await ctx.reply("I do not have permission to block users!")
 
         if already_blocked:
-            await ctx.send(
+            await ctx.reply(
                 f"{member} is already blocked from being able to `{'`, `'.join(already_blocked)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
             block_list -= already_blocked
 
@@ -203,7 +203,7 @@ class Block(commands.Cog):
                 await self.bot.terrygon_logger.channel_block("block", member, ctx.author, channel, block_list, reason)
             except errors.LoggingError:
                 pass
-            await ctx.send(
+            await ctx.reply(
                 f"{member} can no longer `{'`, `'.join(block_list)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}.")
 
     @commands.guild_only()
@@ -258,7 +258,7 @@ class Block(commands.Cog):
             unblock_list.add('react')
 
         if len(unblock_list) == 0:
-            await ctx.send("Please use a flag for the permission you would like the unblock!")
+            await ctx.reply("Please use a flag for the permission you would like the unblock!")
             await ctx.send_help(ctx.command)
             return
 
@@ -276,10 +276,10 @@ class Block(commands.Cog):
                 if channel_overwrites.is_empty():
                     await channel.set_permissions(member, overwrite=None)
             except discord.Forbidden:
-                return await ctx.send("I do not have permission to unblock users!")
+                return await ctx.reply("I do not have permission to unblock users!")
 
         if not_blocked:
-            await ctx.send(
+            await ctx.reply(
                 f"{member} is not blocked from being able to `{'`, `'.join(not_blocked)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name}")
             unblock_list -= not_blocked
 
@@ -295,7 +295,7 @@ class Block(commands.Cog):
             except errors.LoggingError:
                 pass
 
-            await ctx.send(
+            await ctx.reply(
                 f"{member} can `{'`, `'.join(unblock_list)}` in {channel.mention if isinstance(channel, discord.TextChannel) else channel.name} again.")
 
     @commands.guild_only()
@@ -307,7 +307,7 @@ class Block(commands.Cog):
             "SELECT channel_id FROM channel_block WHERE user_id = $1 AND guild_id = $2", member.id,
             member.guild.id)
         if not channel_ids:
-            return await ctx.send("No blocks found for this user!")
+            return await ctx.reply("No blocks found for this user!")
 
         channel_list = []
         for channel_id in channel_ids:
@@ -325,7 +325,7 @@ class Block(commands.Cog):
 
         await self.bot.db.execute("DELETE FROM channel_block WHERE guild_id = $1 AND user_id = $2", member.guild.id,
                                   member.id)
-        await ctx.send(f"All blocks cleared for {member}")
+        await ctx.reply(f"All blocks cleared for {member}")
 
         try:
             await member.send(f"All blocks have been removed for you in on {ctx.guild.name}")
@@ -374,7 +374,7 @@ class Block(commands.Cog):
             member = ctx.author
         has_perms = await checks.nondeco_is_staff_or_perms(ctx, self.bot.db, "Mod", manage_roles=True)
         if not has_perms and member != ctx.author:
-            return await ctx.send("You cannot check other people's restrictions!")
+            return await ctx.reply("You cannot check other people's restrictions!")
 
         # get data from database
         embed = await self.list_blocks_db(member)
@@ -382,7 +382,7 @@ class Block(commands.Cog):
             embed = discord.Embed(color=member.color.value)
             embed.set_author(name=f"Blocks for {member}", icon_url=member.avatar_url)
             embed.description = "There are none!"
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
 
 class DbBlocks:

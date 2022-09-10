@@ -1,9 +1,8 @@
 import discord
 from discord.ext import commands, flags
 from terrygon import read_config
-from utils import checks, errors, common, paginator
+from utils import checks, errors, common, custom_views
 import typing
-
 
 class Settings(commands.Cog):
     """Settings and configuration Cog"""
@@ -26,7 +25,7 @@ class Settings(commands.Cog):
     async def set_unset_role(self, ctx: commands.Context, role: typing.Union[discord.Role, None], role_type: str,
                              mode: str) -> int:
         if not isinstance(role, discord.Role) and role is not None:
-            await ctx.send("Invalid role given! Does this role exist?")
+            await ctx.reply("Invalid role given! Does this role exist?")
             return -1
 
         if role_type not in ('mod_role', 'admin_role', 'owner_role', 'approved_role', 'muted_role', 'probation_role'):
@@ -71,7 +70,7 @@ class Settings(commands.Cog):
                                  channel_type: str, mode: str) -> int:
         """Sets a log channel to the database, mode should be either `set` or `unset`"""
         if not isinstance(channel, discord.TextChannel) and channel is not None:
-            await ctx.send("Invalid channel, does this channel exist?")
+            await ctx.reply("Invalid channel, does this channel exist?")
             return -1
 
         if channel_type not in ('mod_logs', 'message_logs', 'member_logs', 'filter_logs'):
@@ -97,7 +96,7 @@ class Settings(commands.Cog):
             elif mode.lower() == 'set':
                 # just in case
                 if channel is None:
-                    await ctx.send("Please enter a channel to set")
+                    await ctx.reply("Please enter a channel to set")
                     return -1
 
                 await conn.execute(f"UPDATE channels SET {channel_type} = $1 WHERE guild_id = $2", channel.id,
@@ -142,7 +141,7 @@ class Settings(commands.Cog):
         """
         active_flags = {lst for lst in log_channels.items() if lst[1]}
         if not active_flags:
-            return await ctx.send(
+            return await ctx.reply(
                 "Please specify a log channel type you would like to add, flags are `--modlogs`, `--memberlogs`, `--messagelogs`, or `--filterlogs`")
 
         else:
@@ -156,10 +155,10 @@ class Settings(commands.Cog):
                         msg += f"{channel_type.replace('_', '').title()}, "
 
             if msg:
-                await ctx.send(msg.rstrip(", ") + " have been set!")
+                await ctx.reply(msg.rstrip(", ") + " have been set!")
             else:
                 # should never appear
-                await ctx.send("Unable to set any channels to the database!")
+                await ctx.reply("Unable to set any channels to the database!")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
@@ -182,7 +181,7 @@ class Settings(commands.Cog):
 
         active_flags = [lst[0] for lst in channel_type.items() if lst[1]]
         if not active_flags:
-            await ctx.send(
+            await ctx.reply(
                 "Please specify a log channel type you would like to remove, flags are `--modlogs`, `--memberlogs`, `--messagelogs`, and `--filterlogs`")
         else:
             msg = ""
@@ -195,10 +194,10 @@ class Settings(commands.Cog):
                         msg += f"{log_type.replace('_', '').title()}, "
 
             if msg:
-                await ctx.send(msg.rstrip(", ") + " have been unset!")
+                await ctx.reply(msg.rstrip(", ") + " have been unset!")
             else:
                 # should never appear
-                await ctx.send("Unable to unset any channels to the database!")
+                await ctx.reply("Unable to unset any channels to the database!")
 
     # roles
     @commands.guild_only()
@@ -224,7 +223,7 @@ class Settings(commands.Cog):
         """
         active_flags = {lst for lst in role_flags.items() if lst[1]}
         if not active_flags:
-            return await ctx.send(
+            return await ctx.reply(
                 "Please specify a database role you would like to add, flags are `--adminrole`, `--modrole`, and `--ownerrole`")
         else:
             msg = ""
@@ -237,9 +236,9 @@ class Settings(commands.Cog):
                         msg += f"{role_type.replace('_', '').title()}, "
 
             if msg:
-                await ctx.send(msg.rstrip(", ") + " have been set!")
+                await ctx.reply(msg.rstrip(", ") + " have been set!")
             else:
-                await ctx.send("Unable to set any roles to the database!")
+                await ctx.reply("Unable to set any roles to the database!")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
@@ -258,7 +257,7 @@ class Settings(commands.Cog):
         """
         active_flags = {lst for lst in role_flags.items() if lst[1]}
         if not active_flags:
-            return await ctx.send(
+            return await ctx.reply(
                 "Please specify a database role you would like to add, flags are `--adminrole`, `--modrole`, and `--ownerrole`")
         else:
             msg = ""
@@ -271,29 +270,29 @@ class Settings(commands.Cog):
                         msg += f"{role_type.replace('_', '').title()}, "
 
             if msg:
-                await ctx.send(msg.rstrip(", ") + " have been unset!")
+                await ctx.reply(msg.rstrip(", ") + " have been unset!")
             else:
                 # should never appear
-                await ctx.send("Unable to unset any roles to the database!")
+                await ctx.reply("Unable to unset any roles to the database!")
 
     async def toggle_join_logs(self, ctx: commands.Context):
         async with self.bot.db.acquire() as conn:
             member_logs_channel_id = await conn.fetchval("SELECT member_logs FROM channels WHERE guild_id =  $1",
                                                          ctx.guild.id)
             if member_logs_channel_id is None:
-                await ctx.send("Member log channel not configured!")
+                await ctx.reply("Member log channel not configured!")
                 return
 
             if await conn.fetchval("SELECT enable_join_leave_logs FROM guild_settings WHERE guild_id = $1",
                                    ctx.guild.id):
                 await conn.execute("UPDATE guild_settings SET enable_join_leave_logs = FALSE WHERE guild_id = $1",
                                    ctx.guild.id)
-                await ctx.send("Join and leave logs are now off!")
+                await ctx.reply("Join and leave logs are now off!")
                 await self.bot.terrygon_logger.toggle_log_setup("unset", "join leave logs", ctx.author, 'member_logs')
             else:
                 await conn.execute("UPDATE guild_settings SET enable_join_leave_logs = TRUE WHERE guild_id = $1",
                                    ctx.guild.id)
-                await ctx.send("Join and leave logs are now on!")
+                await ctx.reply("Join and leave logs are now on!")
                 await self.bot.terrygon_logger.toggle_log_setup("set", "join leave logs", ctx.author, 'member_logs')
 
     async def toggle_core_message_logs(self, ctx: commands.Context):
@@ -301,27 +300,28 @@ class Settings(commands.Cog):
             member_logs_channel_id = await conn.fetchval("SELECT message_logs FROM channels WHERE guild_id =  $1",
                                                          ctx.guild.id)
             if member_logs_channel_id is None:
-                await ctx.send("Message log channel not configured!")
+                await ctx.reply("Message log channel not configured!")
                 return
 
             if await conn.fetchval("SELECT enable_core_message_logs FROM guild_settings WHERE guild_id = $1",
                                    ctx.guild.id):
                 await conn.execute("UPDATE guild_settings SET enable_core_message_logs = FALSE WHERE guild_id = $1",
                                    ctx.guild.id)
-                await ctx.send("Message edits and deletes are no longer logged!")
+                await ctx.reply("Message edits and deletes are no longer logged!")
                 await self.bot.terrygon_logger.toggle_log_setup("unset", "core message logs", ctx.author,
                                                                 'message_logs')
             else:
                 await conn.execute("UPDATE guild_settings SET enable_core_message_logs = TRUE WHERE guild_id = $1",
                                    ctx.guild.id)
-                await ctx.send("Message edits and deletes are now being logged!")
+                await ctx.reply("Message edits and deletes are now being logged!")
                 await self.bot.terrygon_logger.toggle_log_setup("set", "core message logs", ctx.author, 'message_logs')
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Owner', administrator=True)
     @commands.group(invoke_without_command=True)
     async def logs(self, ctx: commands.Context):
-        """Command used to manage all logging systems. You can set and unset channels, modroles, and toggle which things you would like to log for your server"""
+        """Command used to manage all logging systems. You can set and unset channels, modroles, and toggle which
+        things you would like to log for your server """
         await ctx.send_help(ctx.command)
 
     @commands.guild_only()
@@ -352,7 +352,7 @@ class Settings(commands.Cog):
         """Sets and configures a server's muted role"""
         out = await self.muted_role_setup(ctx, role)
         if out:
-            await ctx.send(out)
+            await ctx.reply(out)
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Admin', manage_guild=True)
@@ -361,33 +361,33 @@ class Settings(commands.Cog):
         """Unsets the muted role (Admin+, manage server)"""
         muted_role_id = await self.bot.db.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", ctx.guild.id)
         if not muted_role_id:
-            return await ctx.send("No muted_role saved in the database.")
+            return await ctx.reply("No muted_role saved in the database.")
         await self.set_unset_role(ctx, None, 'muted_role', 'unset')
-        res, msg = await paginator.YesNoMenu("Muted role, unset, would you like to delete it?").prompt(ctx)
-        if res:
+        confirmation = custom_views.Confirmation("Role deleted!", "Role deleted!")
+        msg = await ctx.reply("Muted role is unset, would you like to delete it?", view=confirmation)
+        await confirmation.wait()
+        if confirmation.value:
             try:
                 await ctx.guild.get_role(muted_role_id).delete()
-                await msg.edit(content="Role deleted!")
             except discord.Forbidden:
-                return await msg.edit(content="I cannot delete roles!")
-        else:
-            await msg.edit(content="Role not deleted.")
+                await msg.edit(content="I cannot delete roles!")
 
     async def muted_role_setup(self, ctx: commands.Context, role: discord.Role = None):
         """Sets the muted role and configures the server to use the muted role."""
         if role is None:
-            res, msg = await paginator.YesNoMenu("No muted role detected, would you like to create one?").prompt(ctx)
-            if res:
+            confirmation = custom_views.Confirmation(
+                "New role named `Muted` created, added to the database, and set up with all the channels",
+                "Cancelled"
+            )
+            await ctx.reply("No muted role detected, would you like to create one?", view=confirmation)
+            await confirmation.wait()
+            if confirmation.value:
                 try:
                     role = await ctx.guild.create_role(name='Muted', reason="New role for muting members")
                 except discord.Forbidden:
                     return "I am unable to create roles, please check permissions!"
-                await msg.edit(
-                    content="New role named `Muted` created, added to the database, and set up with all the channels")
-            else:
-                return await msg.edit(content="Canceled")
         else:
-            await ctx.send("Muted role set!")
+            await ctx.reply("Muted role set!")
 
         # first go through the categories
         try:
@@ -427,44 +427,39 @@ class Settings(commands.Cog):
         """Probation configuration"""
         res = await self.probate_setup(ctx, **kwargs)
         if res == -1:
-            return await ctx.send("Unable to configure probation, please try again.")
+            return await ctx.reply("Unable to configure probation, please try again.")
 
     async def probate_setup(self, ctx: commands.Context, **kwargs) -> int:
         """Sets up probation"""
         probation_role = None
         probation_channel = None
         if not kwargs['channel']:
-            res, msg = await paginator.YesNoMenu(
-                "No probation channel set, would you like to create a new one and set it?").prompt(ctx)
-            if res:
+            confirmation = custom_views.Confirmation("Probation channel created!", "Didn't make probation channel. Implementation is being updated")
+            msg = await ctx.reply("No probation channel set, would you like to create a new one and set it?", view=confirmation)
+            await confirmation.wait()
+            if confirmation.value:
                 try:
                     probation_channel = await ctx.guild.create_text_channel('probation',
                                                                             reason="Probation lockdown channel")
                 except discord.Forbidden:
-                    return await msg.edit(content="Unable to manage channels")
-
-                await msg.edit(content="Probation channel created!")
-
+                    await msg.edit(content="Unable to manage channels")
+                    return -1
             else:
-                await msg.edit(
-                    content="You need a probation channel to lock users to. If you have an existing one please set it with `-c <channel>`")
                 return -1
         else:
             probation_channel = kwargs['channel']
 
         if not kwargs['role']:
-            res, msg = await paginator.YesNoMenu("No probation role set, would you like to make one?").prompt(ctx)
-            if res:
+            role_confirmation = custom_views.Confirmation("Probation role created!", "You need a probation role, implementation being updated")
+            role_msg = await ctx.reply("No probation role set, would you like to make one?", view=role_confirmation)
+            await role_confirmation.wait()
+            if role_confirmation.value:
                 try:
                     probation_role = await ctx.guild.create_role(name="Probation", color=discord.Color.dark_red())
                 except discord.Forbidden:
-                    return await msg.edit(content="I cannot manage roles!")
-
-                await msg.edit(content="Probation role created!")
-
+                    await role_msg.edit(content="I cannot manage roles!")
+                    return -1
             else:
-                await msg.edit(
-                    content="You need a probation role for probate to work properly. If you have an existing one please specify one with `-r <role>`")
                 return -1
 
         else:
@@ -472,7 +467,7 @@ class Settings(commands.Cog):
 
         # enter data into database
         if probation_role is None or probation_channel is None:
-            await ctx.send("Invalid data given, please run this command again.")
+            await ctx.reply("Invalid data given, please run this command again.")
             return -1
 
         await self.bot.db.execute("UPDATE channels SET probation_channel = $1 WHERE guild_id = $2",
@@ -493,7 +488,7 @@ class Settings(commands.Cog):
                         await channel.set_permissions(probation_role, read_messages=False)
 
             except discord.Forbidden:
-                await ctx.send("Unable to manage roles.")
+                await ctx.reply("Unable to manage roles.")
                 return -1
 
             # channel
@@ -514,7 +509,7 @@ class Settings(commands.Cog):
                     for role in staff_roles:
                         await probation_channel.set_permissions(role, read_messages=True)
 
-        await ctx.send("Probation channel and role set up.")
+        await ctx.reply("Probation channel and role set up.")
         await self.bot.terrygon_logger.probation_settings("set", ctx.author, probation_channel, probation_role)
         return 0
 
@@ -532,38 +527,32 @@ class Settings(commands.Cog):
 
         await self.bot.db.execute("UPDATE roles SET probation_role = NULL WHERE guild_id = $1", ctx.guild.id)
         if probation_role:
-            res, msg = await paginator.YesNoMenu(
-                "Would you like to delete the probation role? This will unprobate all users.").prompt(ctx)
-            if res:
+            confirmation = custom_views.Confirmation("Probation role deleted.", "Role not deleted.")
+            msg = await ctx.reply("Would you like to delete the probation role? This will unprobate all users.", view=confirmation)
+            await confirmation.wait()
+            if confirmation.value:
                 try:
                     await probation_role.delete(reason="Removing probation system.")
-                    await msg.edit(content="Probation role deleted.")
                 except discord.Forbidden:
                     await msg.edit(content="Unable to delete roles due to permissions.")
-
-            else:
-                await msg.edit(content="Role not deleted.")
-
         else:
-            await ctx.send("Probation role has already been deleted, removing from database.")
+            await ctx.reply("Probation role has already been deleted, removing from database.")
 
         await self.bot.db.execute("UPDATE channels SET probation_channel = NULL WHERE guild_id = $1", ctx.guild.id)
         if probation_channel:
-            res, msg = await paginator.YesNoMenu("Would you like to delete the probation channel?").prompt(ctx)
-            if res:
+            channel_confirmation = custom_views.Confirmation("Probation channel deleted", "Channel not deleted.")
+            ch_msg = await ctx.reply("Would you like to delete the probation channel?", view=channel_confirmation)
+            if channel_confirmation.value:
                 try:
                     await probation_channel.delete(reason="Removing probation system.")
-                    await msg.edit(content="Probation channel deleted")
                 except discord.Forbidden:
-                    await msg.edit(content="I cannot delete channels")
-            else:
-                await msg.edit(content="Channel not deleted.")
+                    await ch_msg.edit(content="I cannot delete channels")
         else:
-            await ctx.send("Probation channel has already been deleted")
+            await ctx.reply("Probation channel has already been deleted")
 
         await self.bot.db.execute("DELETE FROM probations WHERE guild_id = $1", ctx.guild.id)
         await self.bot.db.execute("UPDATE guild_settings SET auto_probate = FALSE WHERE guild_id = $1", ctx.guild.id)
-        await ctx.send("Probation system removed.")
+        await ctx.reply("Probation system removed.")
         await self.bot.terrygon_logger.probation_settings("unset", ctx.author)
 
     @commands.guild_only()
@@ -598,7 +587,7 @@ class Settings(commands.Cog):
             desc += "Auto probate is currently disabled. To enable, please run `autoprobate enable`"
 
         emb.description = desc
-        await ctx.send(embed=emb)
+        await ctx.reply(embed=emb)
 
     @commands.guild_only()
     @commands.group(invoke_without_command=True)
@@ -622,12 +611,12 @@ class Settings(commands.Cog):
                 await conn.execute(
                     "UPDATE guild_settings SET prefixes = array_append(prefixes, $1) WHERE guild_id = $2",
                     new_prefix, ctx.guild.id)
-                return await ctx.send(f"Added prefix `{new_prefix}` as a guild prefix")
+                return await ctx.reply(f"Added prefix `{new_prefix}` as a guild prefix")
             else:
                 if len(guild_prefixes) >= 10:
-                    return await ctx.send("No more than 10 custom prefixes may be added!")
+                    return await ctx.reply("No more than 10 custom prefixes may be added!")
                 else:
-                    return await ctx.send("This prefix is already in the guild!")
+                    return await ctx.reply("This prefix is already in the guild!")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Admin", manage_guild=True)
@@ -638,14 +627,14 @@ class Settings(commands.Cog):
             guild_prefixes = await conn.fetchval("SELECT prefixes FROM guild_settings WHERE guild_id = $1",
                                                  ctx.guild.id)
             if not guild_prefixes:
-                return await ctx.send("No custom guild prefixes saved!")
+                return await ctx.reply("No custom guild prefixes saved!")
             elif prefix not in guild_prefixes:
-                return await ctx.send("This prefix is not saved to this guild!")
+                return await ctx.reply("This prefix is not saved to this guild!")
             else:
                 await conn.execute(
                     "UPDATE guild_settings SET prefixes = array_remove(prefixes, $1) WHERE guild_id = $2",
                     prefix, ctx.guild.id)
-                await ctx.send("Prefix removed!")
+                await ctx.reply("Prefix removed!")
 
     @commands.guild_only()
     @prefix.command()
@@ -667,7 +656,7 @@ class Settings(commands.Cog):
         embed.description = prefix_str
         embed.add_field(name="Global default prefixes",
                         value=f"- {ctx.me.mention}\n- `{read_config('info', 'default_prefix')}`", inline=False)
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
 
 async def setup(bot):

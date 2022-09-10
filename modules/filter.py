@@ -44,15 +44,15 @@ class Filter(commands.Cog):
         punishment = punishment.lower()
         word = word.replace(" ", "").lower()
         if punishment not in ['delete', 'warn', 'notify']:
-            return await ctx.send("Invalid punishment given, valid options are `warn`, `delete`, or `notify`")
+            return await ctx.reply("Invalid punishment given, valid options are `warn`, `delete`, or `notify`")
 
         # check if word is in list
         if await self.word_in_filter(word, ctx.guild):
-            return await ctx.send("Word is already in filter (filter ignores case)")
+            return await ctx.reply("Word is already in filter (filter ignores case)")
 
         await self.bot.db.execute("INSERT INTO filtered_words (word, guild_id, punishment) VALUES ($1, $2, $3)", word,
                                   ctx.guild.id, punishment)
-        await ctx.send("Word added to the filter")
+        await ctx.reply("Word added to the filter")
         await self.bot.terrygon_logger.word_filter_update("wordadd", word, ctx.author, punishment)
 
     @commands.guild_only()
@@ -63,10 +63,10 @@ class Filter(commands.Cog):
         word = word.lower()
         w_id = await self.word_in_filter(word, ctx.guild)
         if not w_id:
-            return await ctx.send("Word is not in filter")
+            return await ctx.reply("Word is not in filter")
 
         await self.bot.db.execute("DELETE FROM filtered_words WHERE id = $1", w_id)
-        await ctx.send("Word removed from filter")
+        await ctx.reply("Word removed from filter")
         await self.bot.terrygon_logger.word_filter_update("worddelete", word, ctx.author)
 
     @commands.guild_only()
@@ -79,11 +79,11 @@ class Filter(commands.Cog):
         punishment = punishment.lower()
         word = word.lower()
         if punishment not in ['delete', 'warn', 'notify']:
-            return await ctx.send("Invalid punishment given, valid options are `warn`, `delete`, or `notify`")
+            return await ctx.reply("Invalid punishment given, valid options are `warn`, `delete`, or `notify`")
 
         await self.bot.db.execute("UPDATE filtered_words SET punishment = $1 WHERE word = $2 AND guild_id = $3",
                                   punishment, word, ctx.guild.id)
-        await ctx.send("Word punishment updated.")
+        await ctx.reply("Word punishment updated.")
         await self.bot.terrygon_logger.word_filter_update("wordupdate", word, ctx.author, punishment)
 
     @commands.guild_only()
@@ -240,10 +240,10 @@ class Filter(commands.Cog):
                                                ctx.guild.id)
         if bypass_on:
             await self.bot.db.execute("UPDATE guild_settings SET staff_filter = false WHERE guild_id = $1", ctx.guild.id)
-            await ctx.send("Staff can no longer bypass the filter.")
+            await ctx.reply("Staff can no longer bypass the filter.")
         else:
             await self.bot.db.execute("UPDATE guild_settings SET staff_filter = true WHERE guild_id = $1", ctx.guild.id)
-            await ctx.send("Staff can now bypass the filter.")
+            await ctx.reply("Staff can now bypass the filter.")
 
     # whitelisted channels funcs (add/remove)
     @commands.guild_only()
@@ -264,11 +264,11 @@ class Filter(commands.Cog):
         if await self.bot.db.fetchval(
                 "SELECT channel_id FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2", channel.id,
                 ctx.guild.id) is not None:
-            return await ctx.send(f"{channel.mention} is already whitelisted")
+            return await ctx.reply(f"{channel.mention} is already whitelisted")
 
         await self.bot.db.execute("INSERT INTO whitelisted_channels (channel_id, guild_id) VALUES ($1, $2)", channel.id,
                                   ctx.guild.id)
-        await ctx.send(f"{channel.mention} is now whitelisted")
+        await ctx.reply(f"{channel.mention} is now whitelisted")
         await self.bot.terrygon_logger.channel_whitelist("channelwhitelist", channel, ctx.author)
 
     @commands.guild_only()
@@ -287,11 +287,11 @@ class Filter(commands.Cog):
         if not await self.bot.db.fetchval(
                 "SELECT channel_id FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2", channel_id,
                 ctx.guild.id):
-            return await ctx.send(f"{channel.mention} is not whitelisted.")
+            return await ctx.reply(f"{channel.mention} is not whitelisted.")
 
         await self.bot.db.execute("DELETE FROM whitelisted_channels WHERE channel_id = $1 AND guild_id = $2",
                                   channel_id, ctx.guild.id)
-        await ctx.send(output)
+        await ctx.reply(output)
         await self.bot.terrygon_logger.channel_whitelist("channeldewhitelist", channel, ctx.author)
 
     @commands.guild_only()

@@ -23,14 +23,14 @@ class QRGen(commands.Cog):
                     imgbuf = BytesIO()
                     img.save(imgbuf, 'png')
                     imgbuf.seek(0)
-                    await ctx.send(file=File(imgbuf, "qr_code.png"))
+                    await ctx.reply(file=File(imgbuf, "qr_code.png"))
                     return
         else:
             img = make(url)
             imgbuf = BytesIO()
             img.save(imgbuf, 'png')
             imgbuf.seek(0)
-            await ctx.send(file=File(imgbuf, "qr_code.png"))
+            await ctx.reply(file=File(imgbuf, "qr_code.png"))
 
 
 async def setup(bot):

@@ -42,12 +42,12 @@ class TerryHelp(commands.HelpCommand):
 
         if len(command.aliases) > 0:
             embed.add_field(name="Aliases", value=", ".join(command.aliases))
-        await self.get_destination().send(embed=embed)
+        await self.context.reply(embed=embed)
 
     async def send_group_help(self, group: commands.Group[Any, ..., Any], /) -> None:
         """Sends command group help"""
         group_commands = group.commands
-        embed = discord.Embed(title=f"Help for `{group.name}`", description=group.short_doc)
+        embed = discord.Embed(title=f"Help for `{group.name}`", description=group.short_doc, color=discord.Color.purple())
         val_str = ""
         for command in group_commands:
             val_str += f"""`{self.context.prefix}{command.name} {f"[{' | '.join(command.aliases)}]" if len(command.aliases) > 0 else ""}` - {command.short_doc}\n"""
@@ -56,7 +56,7 @@ class TerryHelp(commands.HelpCommand):
         if len(group.aliases) > 0:
             embed.add_field(name="aliases", value=", ".join(group.aliases), inline=False)
 
-        await self.get_destination().send(embed=embed)
+        await self.context.reply(embed=embed)
 
 
 class HelpPaginator(custom_views.BaseButtonPaginator):

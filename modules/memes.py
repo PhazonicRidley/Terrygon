@@ -1,7 +1,7 @@
 import random
 import discord
 from discord.ext import commands
-from utils import checks, common, paginator, custom_views
+from utils import checks, common, custom_views
 
 
 class Memes(commands.Cog):
@@ -20,9 +20,9 @@ class Memes(commands.Cog):
         meme = await self.bot.db.fetchval(
             "SELECT content FROM memes WHERE (guild_id = $1 OR guild_id = 0) AND name = $2", ctx.guild.id, meme_name)
         if not meme:
-            await ctx.send(f"No meme `{meme_name}` found.")
+            await ctx.reply(f"No meme `{meme_name}` found.")
         else:
-            await ctx.send(meme)
+            await ctx.reply(meme)
 
     @commands.guild_only()
     @checks.is_trusted_or_perms(manage_messages=True)
@@ -31,22 +31,22 @@ class Memes(commands.Cog):
         """Adds a server meme."""
         meme_name = meme_name.lower()
         if meme_name in ('add', 'remove', 'list', 'del', 'delete'):
-            return await ctx.send("Cannot use this name for a meme, this a command name.")
+            return await ctx.reply("Cannot use this name for a meme, this a command name.")
 
         exists = await self.bot.db.fetchval("SELECT name FROM memes WHERE guild_id = $1 AND name = $2", ctx.guild.id,
                                             meme_name)
         if exists:
-            res, msg = await paginator.YesNoMenu("Meme exists, would you like to update it?").prompt(ctx)
-            if res:
-                await self.bot.db.execute("UPDATE memes SET content = $1 WHERE guild_id = $2 AND name = $3", meme_content,
+            confirmation = custom_views.Confirmation(f"Updated meme `{meme_name}`.", "Did not update meme.")
+            await ctx.reply("Meme exists, would you like to update it?", view=confirmation)
+            await confirmation.wait()
+            if confirmation.value:
+                await self.bot.db.execute("UPDATE memes SET content = $1 WHERE guild_id = $2 AND name = $3",
+                                          meme_content,
                                           ctx.guild.id, meme_name)
-                await msg.edit(content=f"Updated meme `{meme_name}`.")
-            else:
-                await msg.edit(content="Did not update meme.")
         else:
             await self.bot.db.execute("INSERT INTO memes (guild_id, name, content) VALUES ($1, $2, $3)", ctx.guild.id,
                                       meme_name, meme_content)
-            await ctx.send(f"Added meme `{meme_name}`.")
+            await ctx.reply(f"Added meme `{meme_name}`.")
 
     @commands.guild_only()
     @checks.is_trusted_or_perms(manage_messages=True)
@@ -58,19 +58,19 @@ class Memes(commands.Cog):
                                             meme_name)
         if exists:
             await self.bot.db.execute("DELETE FROM memes WHERE name = $1 AND guild_id = $2", meme_name, ctx.guild.id)
-            await ctx.send(f"Meme `{meme_name}` deleted.")
+            await ctx.reply(f"Meme `{meme_name}` deleted.")
         else:
-            await ctx.send("Meme does not exist.")
+            await ctx.reply("Meme does not exist.")
 
     async def list_memes(self, ctx: commands.Context):
         """Lists a server's memes."""
         guild_memes = await self.bot.db.fetch("SELECT name FROM memes WHERE guild_id = $1", ctx.guild.id)
         if not guild_memes:
-            return await ctx.send(f"No memes saved for {ctx.guild.name}")
+            return await ctx.reply(f"No memes saved for {ctx.guild.name}")
         guild_memes = [f"- `{m['name']}`\n" for m in guild_memes]
-        pages = custom_views.BtnPaginator(ctx, entries=guild_memes, per_page=4, title="Memes", color=discord.Color.green())
+        pages = custom_views.BtnPaginator(ctx, entries=guild_memes, per_page=4, title="Memes",
+                                          color=discord.Color.green())
         await pages.start()
-
 
     @commands.guild_only()
     @memes.command(name="list")
@@ -84,7 +84,7 @@ class Memes(commands.Cog):
         if member is None:
             member = ctx.author
         # this is hard coded lol
-        await ctx.send(
+        await ctx.reply(
             f"I've beaned {member}. <a:abeanhammer:511352809245900810>")  # yes i know its hardcoded, ill fix at a later time.
 
     @commands.command()
@@ -93,7 +93,7 @@ class Memes(commands.Cog):
         if member is None:
             member = ctx.author
 
-        await ctx.send(f"I've kicced {member}")
+        await ctx.reply(f"I've kicced {member}")
 
     @commands.command()
     async def moot(self, ctx, member: discord.Member = None):
@@ -101,7 +101,7 @@ class Memes(commands.Cog):
         if member is None:
             member = ctx.author
 
-        await ctx.send(f"{member} is now mooted!")
+        await ctx.reply(f"{member} is now mooted!")
 
     @commands.command()
     async def unmoot(self, ctx, member: discord.Member = None):
@@ -109,7 +109,7 @@ class Memes(commands.Cog):
         if member is None:
             member = ctx.author
 
-        await ctx.send(f"{member} is no longer mooted!")
+        await ctx.reply(f"{member} is no longer mooted!")
 
     @commands.command()
     async def warm(self, ctx, member: discord.Member = None):
@@ -120,7 +120,7 @@ class Memes(commands.Cog):
         if member is None:
             member = ctx.author
 
-        await ctx.send(
+        await ctx.reply(
             f"🔥 I've warmed {member}. User is now {celsius}°C ({common.convert_c_to_f(celsius)}°F) ({celsius + 273}K)")
 
     @commands.command(aliases=['cool'])
@@ -132,7 +132,7 @@ class Memes(commands.Cog):
         if member is None:
             member = ctx.author
 
-        await ctx.send(
+        await ctx.reply(
             f"🧊 I've chilled {member}. User is now {celsius}°C ({common.convert_c_to_f(celsius)}°F) ({celsius + 273}K)")
 
 

@@ -23,7 +23,7 @@ class Trusted(commands.Cog):
 
         if not trusted_ids:
             embed.description = "No trusted users!"
-            return await ctx.send(embed=embed)
+            return await ctx.reply(embed=embed)
 
         deleted_users = ""
         trusted_user_str = ""
@@ -42,7 +42,7 @@ class Trusted(commands.Cog):
         if deleted_users:
             embed.add_field(name="**Deleted user IDs!**",
                             value=deleted_users + "\nPlease delete these users from the database!")
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Admin", manage_guild=True)
@@ -53,15 +53,15 @@ class Trusted(commands.Cog):
             try:
                 member = await self.bot.fetch_user(member)
             except discord.NotFound:
-                return await ctx.send("Invalid user given")
+                return await ctx.reply("Invalid user given")
         trusted_list = await self.get_trusted_list(ctx.guild.id)
         if trusted_list is None or member.id not in trusted_list:
             await self.bot.db.execute(
                 "UPDATE trusted_users SET trusted_uid = array_append(trusted_uid, $1) WHERE guild_id = $2", member.id,
                 ctx.guild.id)
-            await ctx.send(f"Added {member} to {ctx.guild.name}'s trusted list!")
+            await ctx.reply(f"Added {member} to {ctx.guild.name}'s trusted list!")
         else:
-            await ctx.send("This user is already trusted!")
+            await ctx.reply("This user is already trusted!")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Admin", manage_guild=True)
@@ -73,15 +73,15 @@ class Trusted(commands.Cog):
             member = member.id
 
         if trusted_list is None or len(trusted_list) == 0:
-            return await ctx.send("No trusted users saved")
+            return await ctx.reply("No trusted users saved")
 
         elif member in trusted_list:
             await self.bot.db.execute(
                 "UPDATE trusted_users SET trusted_uid = array_remove(trusted_uid, $1) WHERE guild_id = $2", member,
                 ctx.guild.id)
-            await ctx.send(f"{ctx.guild.get_member(member) if ctx.guild.get_member(member) is not None else 'User'} has been removed from trusted list!")
+            await ctx.reply(f"{ctx.guild.get_member(member) if ctx.guild.get_member(member) is not None else 'User'} has been removed from trusted list!")
         else:
-            await ctx.send("This user is not trusted")
+            await ctx.reply("This user is not trusted")
 
     @commands.guild_only()
     @checks.is_trusted_or_perms(manage_messages=True)
@@ -89,18 +89,18 @@ class Trusted(commands.Cog):
     async def pin(self, ctx: commands.Context, message: discord.Message):
         """Pins a message (Trusted+)"""
         if message.guild != ctx.guild:
-            return await ctx.send("You cannot pin messages in other servers!")
+            return await ctx.reply("You cannot pin messages in other servers!")
 
         if message.pinned:
-            return await ctx.send("Message has already been pinned")
+            return await ctx.reply("Message has already been pinned")
 
         try:
             await message.pin()
         except discord.Forbidden:
-            return await ctx.send("I do not have permission to pin messages!")
+            return await ctx.reply("I do not have permission to pin messages!")
 
         except discord.HTTPException:
-            return await ctx.send("This channel has 50 pinned messages, please remove one before adding more")
+            return await ctx.reply("This channel has 50 pinned messages, please remove one before adding more")
 
         await self.bot.terrygon_logger.message_pinned('pin', ctx.author, message)
 
@@ -110,17 +110,17 @@ class Trusted(commands.Cog):
     async def unpin(self, ctx: commands.Context, message: discord.Message):
         """Unpins a message (Trusted+)"""
         if message.guild != ctx.guild:
-            return await ctx.send("You cannot unpin messages in other servers!")
+            return await ctx.reply("You cannot unpin messages in other servers!")
 
         if not message.pinned:
-            return await ctx.send("Message is not pinned")
+            return await ctx.reply("Message is not pinned")
 
         try:
             await message.unpin()
         except discord.Forbidden:
-            return await ctx.send("I do not have permission to unpin messages")
+            return await ctx.reply("I do not have permission to unpin messages")
 
-        await ctx.send("Message unpinned")
+        await ctx.reply("Message unpinned")
         await self.bot.terrygon_logger.message_pinned('unpin', ctx.author, message)
 
 

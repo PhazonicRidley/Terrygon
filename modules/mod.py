@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 # TODO: Seperate out simailar code into single functions, break up massive commands such as mute or probate.
 # TODO: Merge functionality of probate and approval configure.
-
+# TODO: Use updated way of fetching members using converters
 class Mod(commands.Cog):
 
     def __init__(self, bot):
@@ -47,7 +47,7 @@ class Mod(commands.Cog):
         """Sets up the mute commands"""
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "mute")
         if mod_bot_protection is not None:
-            await ctx.send(mod_bot_protection)
+            await ctx.reply(mod_bot_protection)
             return -1
 
         async with self.bot.db.acquire() as conn:
@@ -59,13 +59,13 @@ class Mod(commands.Cog):
                     msg = "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard"
                     self.bot.error_log.error(
                         f"Command: {ctx.command} Guild: {ctx.guild} (ID: {ctx.guild.id})\n " + msg + "\n")
-                    await ctx.send(msg)
+                    await ctx.reply(msg)
                     return -1
                 await cog.muted_role_setup(ctx)
                 muted_role_id = await conn.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", ctx.guild.id)
                 muted_role = ctx.guild.get_role(muted_role_id)
                 if not muted_role and not muted_role_id:
-                    await ctx.send(
+                    await ctx.reply(
                         "Cannot proceed with mute due to muted role not being configured. Please run the mutedrole command to configure.")
                     return -1
 
@@ -74,10 +74,10 @@ class Mod(commands.Cog):
                         "SELECT user_id FROM mutes WHERE user_id = $1 AND guild_id = $2", member.id,
                         ctx.guild.id) == member.id:
                     if mode == 'timed':
-                        await ctx.send("User is already muted, converting to timed mute")
+                        await ctx.reply("User is already muted, converting to timed mute")
                         return 1
                     else:
-                        await ctx.send("User is already muted")
+                        await ctx.reply("User is already muted")
                     return -1
             except TypeError:
                 pass
@@ -85,7 +85,7 @@ class Mod(commands.Cog):
             try:
                 await member.add_roles(muted_role)
             except discord.Forbidden:
-                await ctx.send("💢 I don't have permission to do this.")
+                await ctx.reply("💢 I don't have permission to do this.")
                 return -1
 
             return 0
@@ -112,8 +112,9 @@ class Mod(commands.Cog):
             pass
         await self.bot.terrygon_logger.mod_logs(ctx, 'mute', member, ctx.author, reason)
 
-        await ctx.send(f"{member} has been muted.")
+        await ctx.reply(f"{member} has been muted.")
 
+    # TODO: switch to discord timeouts
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
     @commands.command(name='timemute')
@@ -121,7 +122,7 @@ class Mod(commands.Cog):
         """Mutes a member for a limited number of time (Use dhms format, for example `5m` would be 5 minutes) (Mod+)"""
         time_seconds = common.parse_time(time)
         if time_seconds == -1:
-            return await ctx.send("Invalid time passed, please make sure its in the dhms format.")
+            return await ctx.reply("Invalid time passed, please make sure its in the dhms format.")
 
         res = await self.mute_prep(ctx, member, 'timed')
         if res == -1:
@@ -135,7 +136,7 @@ class Mod(commands.Cog):
                 member.id, ctx.author.id, ctx.guild.id, reason)
 
         ts = (datetime.utcnow() + timedelta(seconds=time_seconds))
-        await ctx.send(f"{member} has been muted until {ts.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        await ctx.reply(f"{member} has been muted until {ts.strftime('%Y-%m-%d %H:%M:%S')} UTC")
         try:
             msg = f"You have been muted on {ctx.guild.name} until {ts.strftime('%Y-%m -%d %H:%M:%S')}"
             if reason:
@@ -159,7 +160,7 @@ class Mod(commands.Cog):
         # protect against staff muting each other or self
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "unmute")
         if mod_bot_protection is not None:
-            await ctx.send(mod_bot_protection)
+            await ctx.reply(mod_bot_protection)
             return
 
         # get muted role and make sure it exists
@@ -168,14 +169,14 @@ class Mod(commands.Cog):
             muted_role = ctx.guild.get_role(muted_role_id)
 
             if muted_role_id is None or muted_role is None:
-                await ctx.send(
+                await ctx.reply(
                     "Muted role not configured. Please run <muted set up command>")  # TODO: fix unmute not configured message
 
             try:
                 query_output = await conn.fetchval("SELECT user_id FROM mutes WHERE user_id = $1 AND guild_id = $2",
                                                    member.id, ctx.guild.id)
                 if not muted_role in member.roles and not query_output == member.id:
-                    await ctx.send("User is not muted")
+                    await ctx.reply("User is not muted")
                     return
             except TypeError:
                 pass
@@ -184,12 +185,12 @@ class Mod(commands.Cog):
             try:
                 await member.remove_roles(muted_role)
             except discord.Forbidden:
-                await ctx.send("💢 I dont have permission to do this.")
+                await ctx.reply("💢 I dont have permission to do this.")
                 return
 
             await conn.execute("DELETE FROM mutes WHERE user_id = $1 AND guild_id = $2", member.id, ctx.guild.id)
 
-            await ctx.send(f"{member} has been unmuted.")
+            await ctx.reply(f"{member} has been unmuted.")
             # logging
             await self.bot.terrygon_logger.mod_logs(ctx, 'unmute', member, ctx.author)
 
@@ -228,7 +229,7 @@ class Mod(commands.Cog):
         """Locks a user to a purgatory channel. (Mod)"""
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "probate")
         if mod_bot_protection is not None:
-            await ctx.send(mod_bot_protection)
+            await ctx.reply(mod_bot_protection)
             return
 
         probation_role_id = await self.bot.db.fetchval("SELECT probation_role FROM roles WHERE guild_id = $1",
@@ -240,11 +241,11 @@ class Mod(commands.Cog):
                 msg = "Set up cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard"
                 self.bot.error_log.error(
                     f"Command: {ctx.command} Guild: {ctx.guild} (ID: {ctx.guild.id})\n" + msg + "\n")
-                return await ctx.send(msg)
+                return await ctx.reply(msg)
 
             res = await cog.probate_setup(ctx, channel=None, role=None)
             if res == -1:
-                return await ctx.send("Unable to probate user, probation not configured properly.")
+                return await ctx.reply("Unable to probate user, probation not configured properly.")
             else:
                 probation_role_id = await self.bot.db.fetchval("SELECT probation_role FROM roles WHERE guild_id = $1",
                                                                ctx.guild.id)
@@ -252,7 +253,7 @@ class Mod(commands.Cog):
 
         if probation_role in member.roles or await self.bot.db.fetchval(
                 "SELECT id FROM probations WHERE user_id = $1 AND guild_id = $2", member.id, ctx.guild.id):
-            return await ctx.send("User is already probated.")
+            return await ctx.reply("User is already probated.")
 
         user_role_ids = [role.id for role in member.roles if role != probation_role and role != ctx.guild.default_role]
         try:
@@ -275,7 +276,7 @@ class Mod(commands.Cog):
         except discord.Forbidden:
             pass
 
-        await ctx.send(f"{member} is now in probation.")
+        await ctx.reply(f"{member} is now in probation.")
         await self.bot.terrygon_logger.probation_log("probate", member, ctx.author, reason)
 
     @commands.guild_only()
@@ -287,9 +288,9 @@ class Mod(commands.Cog):
                                                        ctx.guild.id)
         probation_role = ctx.guild.get_role(probation_role_id)
         if probation_role_id is None and probation_role is None:
-            return await ctx.send("Probation system not configured, this cannot be used.")
+            return await ctx.reply("Probation system not configured, this cannot be used.")
         elif probation_role_id and not probation_role:
-            return await ctx.send("The probation role has been deleted from the server, please reconfigure.")
+            return await ctx.reply("The probation role has been deleted from the server, please reconfigure.")
 
         user_role_ids = await self.bot.db.fetchval("SELECT roles FROM probations WHERE user_id = $1 AND guild_id = $2",
                                                    member.id, ctx.guild.id)
@@ -297,7 +298,7 @@ class Mod(commands.Cog):
         probation_id = await self.bot.db.fetchval("SELECT id FROM probations WHERE user_id = $1 AND guild_id = $2",
                                                   member.id, ctx.guild.id)
         if not probation_id:
-            return await ctx.send("User is not probated.")
+            return await ctx.reply("User is not probated.")
 
         try:
             await member.remove_roles(probation_role)
@@ -319,7 +320,7 @@ class Mod(commands.Cog):
         except discord.Forbidden:
             pass
 
-        await ctx.send(f"{member} is no longer in probation.")
+        await ctx.reply(f"{member} is no longer in probation.")
         await self.bot.terrygon_logger.probation_log("unprobate", member, ctx.author)
 
     # lockdown commands
@@ -342,7 +343,7 @@ class Mod(commands.Cog):
         if channel is None:
             channel = ctx.channel
         elif channel.id != ctx.channel.id:
-            await ctx.send(f"{self.bot.terrygon_logger.emotes['lock']} {channel.mention} has been locked.")
+            await ctx.reply(f"{self.bot.terrygon_logger.emotes['lock']} {channel.mention} has been locked.")
 
         # set staff roles and bot perms in place
         for role in staff_roles:
@@ -398,7 +399,7 @@ class Mod(commands.Cog):
         if channel is None:
             channel = ctx.channel
         else:
-            await ctx.send(f"{self.bot.terrygon_logger.emotes['unlock']} {channel.mention} has been unlocked.")
+            await ctx.reply(f"{self.bot.terrygon_logger.emotes['unlock']} {channel.mention} has been unlocked.")
 
         # set staff roles and bot perms in place
         for role in staff_roles:
@@ -460,7 +461,7 @@ class Mod(commands.Cog):
         """Kick a member. (Mod+)"""
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "kick")
         if mod_bot_protection is not None:
-            await ctx.send(mod_bot_protection)
+            await ctx.reply(mod_bot_protection)
             return
 
         msg = f"You have been kicked from {ctx.guild.name}"
@@ -476,10 +477,10 @@ class Mod(commands.Cog):
             await self.remove_from_approval_list(member, ctx.guild)
             await member.kick(reason=reason if reason is not None else "No reason given")
         except discord.Forbidden:
-            await ctx.send("Unable to kick discord.Member, check my permissions!")
+            await ctx.reply("Unable to kick discord.Member, check my permissions!")
             return
 
-        await ctx.send(
+        await ctx.reply(
             f"{member.name}#{member.discriminator} has been kicked {self.bot.terrygon_logger.emotes['kick']}")
         await self.bot.terrygon_logger.mod_logs(ctx, 'kick', member, ctx.author, reason)
 
@@ -489,11 +490,11 @@ class Mod(commands.Cog):
             try:
                 member = await self.bot.fetch_user(member)  # calls the api to find and ban the user
             except discord.NotFound:
-                return await ctx.send("User was not found")
+                return await ctx.reply("User was not found")
         else:
             mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "ban")
             if mod_bot_protection is not None:
-                await ctx.send(mod_bot_protection)
+                await ctx.reply(mod_bot_protection)
                 return
 
         if isinstance(member, discord.Member):
@@ -527,10 +528,10 @@ class Mod(commands.Cog):
             await ctx.guild.ban(user, reason=reason if reason is not None else "No reason given",
                                 delete_message_days=message_deletion_number)
         except discord.Forbidden:
-            await ctx.send("I am unable to ban, check permissions!")
+            await ctx.reply("I am unable to ban, check permissions!")
             return
 
-        await ctx.send(f"{user.name}#{user.discriminator} has been banned {self.bot.terrygon_logger.emotes['ban']}")
+        await ctx.reply(f"{user.name}#{user.discriminator} has been banned {self.bot.terrygon_logger.emotes['ban']}")
         await self.bot.terrygon_logger.mod_logs(ctx, 'ban', user, ctx.author, reason)
 
     @commands.guild_only()
@@ -542,7 +543,7 @@ class Mod(commands.Cog):
         """Bans a user for a limited amount of time. Time must be in dhms format: (example: 5m is 5 minutes)(Admin+ or ban perms)"""
         time_seconds = common.parse_time(time)
         if time_seconds == -1:
-            return await ctx.send("Invalid time passed, please make sure its in the dhms format.")
+            return await ctx.reply("Invalid time passed, please make sure its in the dhms format.")
         ts = (datetime.utcnow() + timedelta(seconds=time_seconds))
         user = await self.ban_prep(ctx, member, 'timed', timestamp=ts, reason=reason)
         if not user:
@@ -551,7 +552,7 @@ class Mod(commands.Cog):
             await ctx.guild.ban(user, reason=reason if reason else "No reason given",
                                 delete_message_days=message_deletion_number)
         except discord.Forbidden:
-            return await ctx.send("I am unable to ban, check permissions!")
+            return await ctx.reply("I am unable to ban, check permissions!")
         if reason:
             query = "INSERT INTO bans (user_id, author_id, guild_id, reason) VALUES ($1, $2, $3, $4) RETURNING id"
             args = [user.id, ctx.author.id, ctx.guild.id, reason]
@@ -560,7 +561,7 @@ class Mod(commands.Cog):
             args = [user.id, ctx.author.id, ctx.guild.id]
 
         b_id = await self.bot.db.fetchval(query, *args)
-        await ctx.send(
+        await ctx.reply(
             f"{user} has been banned until {ts.strftime('%Y-%m -%d %H:%M:%S')} {self.bot.terrygon_logger.emotes['ban']}")
         try:
             await self.bot.terrygon_logger.timed_mod_logs("ban", user, ctx.author, ts, reason)
@@ -581,7 +582,7 @@ class Mod(commands.Cog):
         elif isinstance(member, discord.Member):
             mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "softban")
             if mod_bot_protection is not None:
-                await ctx.send(mod_bot_protection)
+                await ctx.reply(mod_bot_protection)
                 return
 
             msg = f"You have been softbanned from {ctx.guild.name}"
@@ -598,12 +599,12 @@ class Mod(commands.Cog):
                 await member.kick(
                     reason="softbanned:" + f"The reason is {reason}" if reason is not None else "No given reason")
             except discord.Forbidden:
-                await ctx.send("Unable to softban member")
+                await ctx.reply("Unable to softban member")
 
         await self.bot.db.execute("INSERT INTO bans (user_id, author_id, guild_id, reason) VALUES ($1, $2, $3, $4)",
                                   member.id, ctx.author.id, ctx.guild.id, reason)
 
-        await ctx.send(
+        await ctx.reply(
             f"{member.name}#{member.discriminator} has been softbanned {self.bot.terrygon_logger.emotes['ban']}")
         await self.bot.terrygon_logger.mod_logs(ctx, 'softban', member, ctx.author, reason)
 
@@ -614,15 +615,15 @@ class Mod(commands.Cog):
         """Unsoftbans a user"""
         member = await self.bot.fetch_user(user)
         if member is None:
-            return await ctx.send("User does not exist")
+            return await ctx.reply("User does not exist")
         async with self.bot.db.acquire() as conn:
             if await conn.fetchval("SELECT * FROM bans WHERE user_id = $1 AND guild_id = $2", member.id, ctx.guild.id):
                 await conn.execute("DELETE FROM bans WHERE user_id = $1 AND guild_id = $2",
                                    member.id, ctx.guild.id)
             else:
-                return await ctx.send("User is not softbanned")
+                return await ctx.reply("User is not softbanned")
 
-        await ctx.send(
+        await ctx.reply(
             f"{member.name}#{member.discriminator} has been unsoftbanned {self.bot.terrygon_logger.emotes['warn']}")
 
         await self.bot.terrygon_logger.unsoftban_log(ctx, member)
@@ -634,11 +635,11 @@ class Mod(commands.Cog):
         """Unbans a user from the server (NOT FOR SOFTBANS)"""
         member = await self.bot.fetch_user(user_id)
         if not member:
-            return await ctx.send("This user ID is either invalid or the user has deleted their account.")
+            return await ctx.reply("This user ID is either invalid or the user has deleted their account.")
 
         await ctx.guild.unban(member)
         await self.bot.terrygon_logger.unban_log(member, ctx.author)
-        await ctx.send(f"{member} has been unbanned.")
+        await ctx.reply(f"{member} has been unbanned.")
 
     @commands.guild_only()
     @checks.is_staff_or_perms('Mod', manage_channels=True)
@@ -646,7 +647,7 @@ class Mod(commands.Cog):
     async def clear(self, ctx: commands.Context, num_messages: int, *, reason: str = None):
         """Clears messages from a chat (Mod+ or manage channels)"""
         if num_messages > 100:
-            return await ctx.send("You cannot clear that many messages!")
+            return await ctx.reply("You cannot clear that many messages!")
         else:
             await ctx.channel.purge(limit=num_messages + 1)
 
@@ -661,19 +662,19 @@ class Mod(commands.Cog):
         """Slows a channel, set slowtime to 0 to disable (Mod+ or manage channels)"""
         slow_time_seconds = common.parse_time(slow_time)
         if slow_time_seconds == -1:
-            return await ctx.send("Invalid time format")
+            return await ctx.reply("Invalid time format")
 
         if slow_time_seconds >= 21600:
-            return await ctx.send("You cannot set a slowmode to 6 hours or higher")
+            return await ctx.reply("You cannot set a slowmode to 6 hours or higher")
 
         try:
             await channel.edit(slowmode_delay=slow_time_seconds)
             if slow_time != 0:
-                await ctx.send(f"Slowmode of {slow_time} set to {channel.mention}")
+                await ctx.reply(f"Slowmode of {slow_time} set to {channel.mention}")
             else:
-                await ctx.send(f"Slowmode removed from {channel.mention}")
+                await ctx.reply(f"Slowmode removed from {channel.mention}")
         except discord.Forbidden:
-            return await ctx.send("I don't have permission to update the slowmode delay")
+            return await ctx.reply("I don't have permission to update the slowmode delay")
 
         await self.bot.terrygon_logger.slowmode_log(channel, slow_time, ctx.author, reason)
 
