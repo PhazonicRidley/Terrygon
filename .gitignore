@@ -108,3 +108,4 @@ data/config .toml
 /shelf/
 /workspace.xml
 /backups
+/venv-real/
