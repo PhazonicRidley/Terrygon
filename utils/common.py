@@ -187,7 +187,7 @@ async def validate_user(ctx: commands.Context,
             mode = None
 
         if mode == "guesses":
-            await ctx.send(user_str)
+            await ctx.reply(user_str)
             return None
 
     if user_str:
@@ -201,7 +201,7 @@ async def validate_user(ctx: commands.Context,
         try:
             user = await commands.UserConverter().convert(ctx, str(member))
         except commands.CommandError:
-            await ctx.send("💢 I cannot find that user")
+            await ctx.reply("💢 I cannot find that user")
             return None
 
     return user

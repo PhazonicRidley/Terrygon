@@ -1,7 +1,7 @@
 import typing
 import discord
 from discord.ext import commands
-from utils import paginator, common
+from utils import common, custom_views
 
 
 class AccountInfo(commands.Cog):
@@ -20,17 +20,15 @@ class AccountInfo(commands.Cog):
         exists = await self.bot.db.fetchval("SELECT name FROM accounts WHERE user_id = $1 AND name = $2",
                                             ctx.author.id, name.lower())
         if exists:
-            res, msg = await paginator.YesNoMenu(
-                "An account by this name already exists, would you like to replace it?").prompt(ctx)
-            if res:
-                await msg.edit(content=f"`{name.title()}` updated.")
+            confirmation = custom_views.Confirmation(f"`{name.title()}` updated.", "Account not updated.")
+            await ctx.reply("An account by this name already exists, would you like to replace it?", view=confirmation)
+            await confirmation.wait()
+            if confirmation.value:
                 await self.bot.db.execute("UPDATE accounts SET content = $1 WHERE user_id = $2 AND name = $3", acc, ctx.author.id, name.lower())
-            else:
-                await msg.edit(content="Account not updated.")
         else:
             await self.bot.db.execute("INSERT INTO accounts (user_id, name, content) VALUES ($1, $2, $3)",
                                       ctx.author.id, name.lower(), acc)
-            await ctx.send(f"`{name.title()}` Added.")
+            await ctx.reply(f"`{name.title()}` Added.")
 
     @account_info.command(name="remove", aliases=['del', 'delete'])
     async def account_remove(self, ctx: commands.Context, name: str):
@@ -39,9 +37,9 @@ class AccountInfo(commands.Cog):
 
         if exists:
             await self.bot.db.execute("DELETE FROM accounts WHERE user_id = $1 AND name = $2", ctx.author.id, name.lower())
-            await ctx.send("Account deleted.")
+            await ctx.reply("Account deleted.")
         else:
-            await ctx.send("Account does not exist.")
+            await ctx.reply("Account does not exist.")
 
     async def list_out(self, ctx: commands.Context, user: typing.Union[discord.Member, int] = None):
         """Gets account info for a user"""
@@ -53,7 +51,7 @@ class AccountInfo(commands.Cog):
             try:
                 user = await self.bot.fetch_user(user)
             except discord.NotFound:
-                return await ctx.send("User does not exist.")
+                return await ctx.reply("User does not exist.")
 
         account_data = await self.bot.db.fetch("SELECT name, content FROM accounts WHERE user_id = $1", user.id)
         embed = discord.Embed(color=common.gen_color(user.id))
@@ -66,7 +64,7 @@ class AccountInfo(commands.Cog):
             embed.set_footer(text=f"{len(account_data)} total account" if len(
                 account_data) == 1 else f"{len(account_data)} total accounts")
 
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     @account_info.command(name="list")
     async def account_list(self, ctx: commands.Context, user: typing.Union[discord.Member, int] = None):

@@ -36,7 +36,7 @@ class Misc(commands.Cog):
             if member.bot:
                 bots += 1
 
-        await ctx.send(f"{ctx.guild.name} has {ctx.guild.member_count - bots} members and {bots} bots")
+        await ctx.reply(f"{ctx.guild.name} has {ctx.guild.member_count - bots} members and {bots} bots")
 
     @commands.guild_only()
     @commands.command(name="currentpermissions", aliases=['currentperms', 'perms'])
@@ -62,12 +62,12 @@ class Misc(commands.Cog):
 
         embed.add_field(name=f"Permission value: {perm_list.value}", value=", ".join(perm_names), inline=False)
         embed.add_field(name="Highest role location", value=highest_role_str, inline=False)
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     @commands.command()
     async def ping(self, ctx: commands.Context):
         """Pong!"""
-        return await ctx.send(f":ping_pong: Pong! Response time: {round(self.bot.latency * 1000, 2)} ms")
+        return await ctx.reply(f":ping_pong: Pong! Response time: {round(self.bot.latency * 1000, 2)} ms")
 
     @commands.command(aliases=['ui', 'onion'])
     async def userinfo(self, ctx: commands.Context, member: Union[discord.Member, int, str] = None):
@@ -91,7 +91,7 @@ class Misc(commands.Cog):
                                   color=user.color.value)
             embed.description = f"""**User's ID:** {str(user.id)} \n **Join date:** {str(user.joined_at)} \n**Created on** {str(user.created_at)}\n **Current Status:** {str(user.status).upper() if str(user.status).lower() == "dnd" else str(user.status).title()}\n **User Activity:**: {str(user.activity)} \n **Default Profile Picture:** {str(user.default_avatar).title()}\n **Current Display Name:** {user.display_name}\n**Nitro Boost Date:** {str(user.premium_since)}\n **Current Top Role:** {str(user.top_role)}\n **Bot** {user.bot}\n **Color:** {str(hex(user.color.value)[2:]).zfill(6)}"""
             embed.set_thumbnail(url=user.display_avatar.url)
-            await ctx.send(embed=embed)
+            await ctx.reply(embed=embed)
 
         elif not in_server:
             try:
@@ -104,7 +104,7 @@ class Misc(commands.Cog):
             embed.description = f"**User's ID:** {str(user.id)} \n **Default Profile Picture:** {str(user.default_avatar)} \n  **Created on:** {str(user.created_at)}\n **Bot:** {user.bot}\n {f'**Banned, reason:** {ban.reason}' if ban is not None else ''}"
             embed.set_footer(text=f'{user.name}#{user.discriminator} is not in your server.')
             embed.set_thumbnail(url=user.display_avatar.url)
-            await ctx.send(embed=embed)
+            await ctx.reply(embed=embed)
 
     @commands.command(aliases=['avi'])
     async def avatar(self, ctx: commands.Context, member: Union[discord.Member, int, str] = None):
@@ -117,12 +117,12 @@ class Misc(commands.Cog):
         embed = discord.Embed(title=f"Avatar for {user.name}#{user.discriminator}",
                               color=user.color.value if isinstance(user, discord.Member) else common.gen_color(user.id))
         embed.set_image(url=user.display_avatar.url)
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     @commands.command()
     async def about(self, ctx: commands.Context):
         """Info about the bot"""
-        await ctx.send("https://gitlab.com/PhazonicRidley/terrygon")
+        await ctx.reply("https://gitlab.com/PhazonicRidley/terrygon")
 
     @checks.is_bot_owner()
     @commands.command()
@@ -147,12 +147,12 @@ class Misc(commands.Cog):
             pass
 
         if len(file_list) > 10:
-            return await ctx.send("Cannot attach more than 10 files!")
+            return await ctx.reply("Cannot attach more than 10 files!")
 
         if msg_content == "" or not msg_content:
-            await ctx.send(f"{ctx.author}:", files=file_list)
+            await ctx.reply(f"{ctx.author}:", files=file_list)
         else:
-            await ctx.send(f"{ctx.author}: ||{msg_content}||", files=file_list)
+            await ctx.reply(f"{ctx.author}: ||{msg_content}||", files=file_list)
 
     @commands.guild_only()
     @commands.command(name="guildinfo", aliases=['serverinfo', 'server'])
@@ -232,7 +232,7 @@ class Misc(commands.Cog):
                         value=f":hash: **__Number of text channels:__** {len(guild.text_channels)}\n:loud_sound: **__Number of voice channels:__** {len(guild.voice_channels)}\n",
                         inline=False)
 
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     @checks.is_bot_owner()
     @commands.command()
@@ -241,7 +241,7 @@ class Misc(commands.Cog):
         to = False
         if msg is None:
             await self.bot.change_presence()
-            await ctx.send("Removing status")
+            await ctx.reply("Removing status")
             return
 
         if msg.split()[0].lower() == "watching":
@@ -266,7 +266,7 @@ class Misc(commands.Cog):
 
         self.cur_activity = discord.Activity(name=msg, type=act_type)
         await self.bot.change_presence(status=self.cur_status, activity=self.cur_activity)
-        await ctx.send(out)
+        await ctx.reply(out)
 
     @checks.is_bot_owner()
     @commands.command()
@@ -280,11 +280,11 @@ class Misc(commands.Cog):
             'offline': discord.Status.offline
         }
         if new_status not in statuses.keys():
-            return await ctx.send("Invalid option, valid statuses are: `online`, `idle`, `dnd`, or `offline`")
+            return await ctx.reply("Invalid option, valid statuses are: `online`, `idle`, `dnd`, or `offline`")
 
         self.cur_status = statuses[new_status]
         await self.bot.change_presence(status=self.cur_status, activity=self.cur_activity)
-        await ctx.send(f"Status changed to {new_status}")
+        await ctx.reply(f"Status changed to {new_status}")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
@@ -300,18 +300,18 @@ class Misc(commands.Cog):
         server), time is in dhms format ie `10 minutes` would be `10m` """
         time_seconds = common.parse_time(time)
         if time_seconds == -1:
-            return await ctx.send("Invalid time passed!")
+            return await ctx.reply("Invalid time passed!")
 
         if len(await self.bot.db.fetch(
                 "SELECT * FROM timed_jobs WHERE type = 'reminder' AND extra->>'user_id'::text = $1",
                 str(ctx.author.id))) + 1 > 10:
-            return await ctx.send("You have too many reminders! you can delete some with remind del <number>")
+            return await ctx.reply("You have too many reminders! you can delete some with remind del <number>")
 
         reminder_data = {
             "user_id": ctx.author.id,
             "reminder": text
         }
-        await ctx.send(f"OK, I will remind you about `{text}`. Please make sure I can dm you!")
+        await ctx.reply(f"OK, I will remind you about `{text}`. Please make sure I can dm you!")
         await self.bot.scheduler.add_timed_job('reminder', creation=datetime.utcnow(),
                                                expiration=timedelta(seconds=time_seconds), **reminder_data)
 
@@ -340,7 +340,7 @@ class Misc(commands.Cog):
             await ctx.author.send(embed=out)
             await ctx.message.add_reaction("\U0001f4ec")
         except discord.Forbidden:
-            await ctx.send("I cannot dm you! please enable dms on this server!")
+            await ctx.reply("I cannot dm you! please enable dms on this server!")
 
     @remind.command(name="deletereminder", aliases=['delreminder', 'delremind', 'deleteremind', 'del'])
     async def delete_reminder(self, ctx: commands.Context, reminder_num: int):
@@ -363,9 +363,9 @@ class Misc(commands.Cog):
 
         if deleted_reminder_id:
             await self.bot.db.execute("DELETE FROM timed_jobs WHERE id = $1", deleted_reminder_id)
-            await ctx.send("Reminder deleted.")
+            await ctx.reply("Reminder deleted.")
         elif not deleted_reminder_id or not queued_event:
-            await ctx.send("No reminder by that number found.")
+            await ctx.reply("No reminder by that number found.")
 
     @commands.command(name="getcolor", aliases=['colorinfo'])
     async def get_color(self, ctx: commands.Context, *, color_in: str):
@@ -381,26 +381,26 @@ class Misc(commands.Cog):
 
         rgb_color = common.parse_rgb(color_in)
         if not hex_color_tuple and not rgb_color:
-            return await ctx.send("Unable to parse your input. Command accepts hex or RGB.")
+            return await ctx.reply("Unable to parse your input. Command accepts hex or RGB.")
 
         if mode == 'rgb':
             if not rgb_color:
-                return await ctx.send("Unable to parse RGB.")
+                return await ctx.reply("Unable to parse RGB.")
             e = discord.Embed(title=f"Color RGB {', '.join(map(lambda c: str(c), rgb_color))}",
                               color=discord.Color.from_rgb(*rgb_color),
                               description=f"Color Hex: {webcolors.rgb_to_hex(rgb_color)}")
             color_file = common.image_from_rgb(rgb_color)
             e.set_image(url="attachment://color.png")
-            return await ctx.send(embed=e, file=color_file)
+            return await ctx.reply(embed=e, file=color_file)
 
         elif mode == "hex":
             if not hex_color_tuple:
-                return ctx.send("Unable to parse hex code.")
+                return ctx.reply("Unable to parse hex code.")
             e = discord.Embed(title=f"Color Hex {hex_color_tuple[1]}", color=hex_color_tuple[0],
                               description=f"Color RGB {', '.join(map(lambda x: str(x), tuple(webcolors.hex_to_rgb(hex_color_tuple[1]))))}")
             color_file = common.image_from_rgb(webcolors.hex_to_rgb(hex_color_tuple[1]))
             e.set_image(url="attachment://color.png")
-            return await ctx.send(embed=e, file=color_file)
+            return await ctx.reply(embed=e, file=color_file)
 
     @commands.command(name="emoji", aliases=['e'])  # TODO: support unicode emojis and fuzz for emotes
     async def emoji(self, ctx: commands.Context, emote: Union[str, int, discord.Emoji]):
@@ -408,10 +408,10 @@ class Misc(commands.Cog):
         try:
             emoji_obj = await commands.EmojiConverter().convert(ctx, emote)
         except commands.EmojiNotFound:
-            return await ctx.send(f"No emoji `{emote}` found")
+            return await ctx.reply(f"No emoji `{emote}` found")
         embed = discord.Embed(color=discord.Color.purple(), title=emoji_obj.name)
         embed.set_image(url=emoji_obj.url)
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     @commands.command(name="pt")
     async def pattern_test(self, ctx: commands.Context, inp_str: str):
@@ -421,8 +421,8 @@ class Misc(commands.Cog):
         try:
             output, mode = common.pattern_match_strings(inp_str, lst)
         except ValueError:
-            return await ctx.send("Didn't return anything")
-        await ctx.send(output)
+            return await ctx.reply("Didn't return anything")
+        await ctx.reply(output)
 
 
 async def setup(bot):

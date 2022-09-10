@@ -241,7 +241,7 @@ class Events(commands.Cog):
         """Automatically tries to add every guild the bot is in to the database, if they're already in there, nothing happens (Bot owner only)"""
         for guild in self.bot.guilds:
             await self.add_guild(guild)
-        await ctx.send("Added all guilds to the database!")
+        await ctx.reply("Added all guilds to the database!")
 
     @checks.is_bot_owner()
     @commands.command(name="manualguildadd")
@@ -249,10 +249,10 @@ class Events(commands.Cog):
         """Manually adds a guild to the database (Bot owner only)"""
         new_guild = await self.bot.fetch_guild(new_guild_id)
         if new_guild is None:
-            return await ctx.send("Invalid guild.")
+            return await ctx.reply("Invalid guild.")
 
         await self.add_guild(new_guild)
-        await ctx.send(f"Guild {new_guild.name} added to the database manually")
+        await ctx.reply(f"Guild {new_guild.name} added to the database manually")
 
     @checks.is_bot_owner()
     @commands.command(name="manualguildremove")
@@ -267,7 +267,7 @@ class Events(commands.Cog):
                 except Exception:
                     pass
 
-        await ctx.send(f"Guild {guild.name} removed")
+        await ctx.reply(f"Guild {guild.name} removed")
 
     @checks.is_staff_or_perms("Admin", manage_server=True)
     @commands.command(name="autoprobate")
@@ -288,38 +288,38 @@ class Events(commands.Cog):
             if not cog:
                 msg = "Settings cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard"
                 self.bot.error_log.error(f"Guild: {ctx.guild.id}" + msg)
-                return await ctx.send(msg)
+                return await ctx.reply(msg)
 
             res = await cog.probate_setup(ctx, channel=None, role=None)
             if res == -1:
-                return await ctx.send("Unable to set auto probate because probation is not properly configured.")
+                return await ctx.reply("Unable to set auto probate because probation is not properly configured.")
 
         status = await self.bot.db.fetchval("SELECT auto_probate FROM guild_settings WHERE guild_id = $1", ctx.guild.id)
 
         if option is None:
             if status:
-                return await ctx.send("Auto probate is currently enabled. To disable, please run `autoprobate disable`")
+                return await ctx.reply("Auto probate is currently enabled. To disable, please run `autoprobate disable`")
             else:
-                return await ctx.send("Auto probate is currently disabled. To enable, please run `autoprobate enable`")
+                return await ctx.reply("Auto probate is currently disabled. To enable, please run `autoprobate enable`")
 
         if option.lower() in ("enable", "on", "1"):
             if status:
-                return await ctx.send("Auto probate already enabled. Use `disable`, `off`, or `0` to disable.")
+                return await ctx.reply("Auto probate already enabled. Use `disable`, `off`, or `0` to disable.")
             await self.bot.db.execute("UPDATE guild_settings SET auto_probate = TRUE WHERE guild_id = $1", ctx.guild.id)
             msg = ":warning: **Auto probate has been enabled.**"
-            await ctx.send(msg)
+            await ctx.reply(msg)
 
         elif option.lower() in ("disable", "off", "0"):
             if not status:
-                return await ctx.send("Auto probate is disabled. Use `enable`, `on`, or `1` to enable")
+                return await ctx.reply("Auto probate is disabled. Use `enable`, `on`, or `1` to enable")
 
             await self.bot.db.execute("UPDATE guild_settings SET auto_probate = FALSE WHERE guild_id = $1",
                                       ctx.guild.id)
             msg = ":white_check_mark: **Auto probate has been disabled.**"
-            await ctx.send(msg)
+            await ctx.reply(msg)
 
         else:
-            await ctx.send("Invalid option given.")
+            await ctx.reply("Invalid option given.")
             return await ctx.send_help(ctx.command)
 
         await self.bot.terrygon_logger.custom_log("mod_logs", ctx.guild, msg + f"\nBy {ctx.author.mention} ({ctx.author.id})")

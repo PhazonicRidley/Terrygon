@@ -2,7 +2,7 @@ import typing
 
 import discord
 from discord.ext import commands
-from utils import checks, self_roles, paginator
+from utils import checks, self_roles
 
 
 class ToggleRoles(commands.Cog):
@@ -34,7 +34,7 @@ class ToggleRoles(commands.Cog):
         left_keywords = []
         bot_perms = ctx.guild.get_member(self.bot.user.id).guild_permissions
         if not bot_perms.manage_roles:
-            return await ctx.send("Unable to add roles due to lack of permissions")
+            return await ctx.reply("Unable to add roles due to lack of permissions")
 
         for kw in valid_keywords:
             res = await self.role_toggle(ctx, kw)
@@ -56,7 +56,7 @@ class ToggleRoles(commands.Cog):
         if error_keywords:
             embed.add_field(name="Role no longer exists for:", value=", ".join(error_keywords), inline=False)
 
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     async def role_toggle(self, ctx: commands.Context, keyword: str) -> int:
         """Applies a self role."""
@@ -91,15 +91,16 @@ class ToggleRoles(commands.Cog):
         """Adds a toggleable role"""
         keyword = keyword.lower()
         if "," in keyword:
-            return await ctx.send("Cannot add a comma in your keyword.")
+            return await ctx.reply("Cannot add a comma in your keyword.")
 
         if keyword in ("add", "remove", "del", "delete", "list", "info"):
-            return await ctx.send("Cannot make a keyword this.")
+            return await ctx.reply("Cannot make a keyword this.")
         if await self_roles.check_existing_keyword_roles(ctx, 'toggle_roles', keyword) == -1:
             return
 
-        await self_roles.add_self_role(ctx, 'toggle_roles', role, emoji=emoji, keyword=keyword, description=description)
-        await ctx.send(f"Added toggleable role {role} with keyword {keyword}")
+        res = await self_roles.add_self_role(ctx, 'toggle_roles', role, emoji=emoji, keyword=keyword, description=description)
+        if res == 0:
+            await ctx.reply(f"Added toggleable role {role} with keyword {keyword}")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True)
@@ -108,7 +109,7 @@ class ToggleRoles(commands.Cog):
         """Removes a toggleable role."""
         keyword = keyword.lower()
         if await self_roles.delete_self_role(ctx, "toggle_roles", ('keyword', keyword)) == 0:
-            await ctx.send(f"Toggleable role bound to {keyword} deleted.")
+            await ctx.reply(f"Toggleable role bound to {keyword} deleted.")
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Owner", adminstrator=True)

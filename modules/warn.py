@@ -4,7 +4,7 @@ import discord
 from discord.errors import Forbidden
 import typing
 
-from utils import checks, common, errors, paginator
+from utils import checks, common, errors
 
 
 class DbWarn:
@@ -37,7 +37,7 @@ class Warn(commands.Cog):
 
         await self.bot.db.execute("INSERT INTO warns (user_id, author_id, guild_id, reason) VALUES ($1, $2, $3, $4);",
                                   user.id, ctx.author.id, ctx.guild.id, reason)
-        await ctx.send(f"🚩 {user} has been warned. This is warning #{warn_num}.")
+        await ctx.reply(f"🚩 {user} has been warned. This is warning #{warn_num}.")
         await self.bot.terrygon_logger.mod_logs(ctx, 'warn', user, ctx.author, reason)
 
     @commands.guild_only()
@@ -46,17 +46,18 @@ class Warn(commands.Cog):
     async def soft_warn(self, ctx: commands.Context, member: typing.Union[discord.Member, int], *, reason: str = None):
         """Gives a user a warning without punishing them on 3, 4, and 5 warns (Mod+)"""
         # check if valid user
+        # TODO: use updated way of fetching users via converters
         if isinstance(member, int):
             try:
                 user = await self.bot.fetch_user(member)
             except discord.NotFound:
-                return await ctx.send("Invalid user given.")
+                return await ctx.reply("Invalid user given.")
 
             return await self.warn_user_out_server(ctx, user, reason)
 
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "warn")
         if mod_bot_protection is not None:
-            await ctx.send(mod_bot_protection)
+            await ctx.reply(mod_bot_protection)
             return
 
         async with self.bot.db.acquire() as conn:
@@ -70,7 +71,7 @@ class Warn(commands.Cog):
             await conn.execute("INSERT INTO warns (user_id, author_id, guild_id, reason) VALUES ($1, $2, $3, $4);",
                                member.id, ctx.author.id, ctx.guild.id, reason)
 
-        await ctx.send(f"🚩 {member} has been warned. This is warning #{warn_num}.")
+        await ctx.reply(f"🚩 {member} has been warned. This is warning #{warn_num}.")
         await self.bot.terrygon_logger.mod_logs(ctx, 'warn', member, ctx.author, reason)
 
         msg = f"You have been warned on {ctx.guild.name}. "
@@ -106,7 +107,7 @@ class Warn(commands.Cog):
             for num, pun in warn_punishment_data.items():
                 out.description += f"At **{num}** warn(s) a user will get a **{pun}**.\n"
 
-        await ctx.send(embed=out)
+        await ctx.reply(embed=out)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Owner", administrator=True)
@@ -114,16 +115,16 @@ class Warn(commands.Cog):
     async def set(self, ctx: commands.Context, warn_number: int, warn_punishment: str, mute_time: str = None):
         """Set punishments for warns. Valid options are `kick`, `ban`, and `mute` max number of warns allowed is 100"""
         if warn_number > 100:
-            return await ctx.send("You cannot have over 100 warns")
+            return await ctx.reply("You cannot have over 100 warns")
         if warn_punishment.lower() not in ('kick', 'ban', 'mute', 'probate'):
-            return await ctx.send(
+            return await ctx.reply(
                 "Invalid punishment given, valid punishments are `kick`, `ban`, 'probate' and `mute`.")
         async with self.bot.db.acquire() as conn:
             if warn_punishment.lower() == 'mute':
                 if await conn.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", ctx.guild.id) is None:
                     cog = self.bot.get_cog('Settings')
                     if not cog:
-                        return await ctx.send(
+                        return await ctx.reply(
                             "Settings cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
                     await cog.muted_role_setup(ctx)
 
@@ -131,7 +132,7 @@ class Warn(commands.Cog):
                     mute_time = "24h"
                 res = common.parse_time(mute_time)
                 if res == -1:
-                    return await ctx.send("Invalid time format")
+                    return await ctx.reply("Invalid time format")
                 await conn.execute("UPDATE guild_settings SET warn_automute_time = $1 WHERE guild_id = $2", res,
                                    ctx.guild.id)
 
@@ -144,12 +145,12 @@ class Warn(commands.Cog):
                 if not probation_role and not probate_channel_id:
                     cog = self.bot.get_cog("Settings")
                     if not cog:
-                        return await ctx.send(
+                        return await ctx.reply(
                             "Settings cog not loaded and muted role not set, please manually set the muted role or load the setup cog to trigger the wizard")
 
                     res = await cog.probation_setup(ctx, channel=None, roles=None)
                     if res == -1:
-                        return await ctx.send(
+                        return await ctx.reply(
                             "Unable to set probation warn punishment due to probation configuration error.")
 
             if await conn.fetchval("SELECT warn_punishments FROM guild_settings WHERE guild_id = $1",
@@ -162,7 +163,7 @@ class Warn(commands.Cog):
                 "UPDATE guild_settings SET warn_punishments = warn_punishments::jsonb || jsonb_build_object($1::INT, $2::TEXT) WHERE guild_id = $3",
                 warn_number, warn_punishment, ctx.guild.id)
 
-        await ctx.send(f"Ok, I will now {warn_punishment} when a user gets {warn_number} warn(s).")
+        await ctx.reply(f"Ok, I will now {warn_punishment} when a user gets {warn_number} warn(s).")
         try:
             await self.bot.terrygon_logger.auto_mod_setup(ctx.author, warn_punishment, warn_num=warn_number)
         except errors.LoggingError:
@@ -179,9 +180,9 @@ class Warn(commands.Cog):
                 await conn.execute(
                     "UPDATE guild_settings SET warn_punishments = warn_punishments::jsonb - $1 WHERE guild_id = $2",
                     warn_number, ctx.guild.id)
-                await ctx.send("Deleted warn punishment!")
+                await ctx.reply("Deleted warn punishment!")
             else:
-                await ctx.send("No punishment is set for this warn number!")
+                await ctx.reply("No punishment is set for this warn number!")
 
     # handle warn punishments
     async def punish(self, member: discord.Member, warn_number: int, action: str, moderator: discord.Member = None):
@@ -263,13 +264,13 @@ class Warn(commands.Cog):
             try:
                 user = await self.bot.fetch_user(member)
             except discord.NotFound:
-                return await ctx.send("Invalid user given.")
+                return await ctx.reply("Invalid user given.")
 
             return await self.warn_user_out_server(ctx, user, reason)
 
         mod_bot_protection = await checks.mod_bot_protection(self.bot, ctx, member, "warn")
         if mod_bot_protection is not None:
-            await ctx.send(mod_bot_protection)
+            await ctx.reply(mod_bot_protection)
             return
 
         async with self.bot.db.acquire() as conn:
@@ -287,7 +288,7 @@ class Warn(commands.Cog):
             punishment_data = await conn.fetchval("SELECT warn_punishments FROM guild_settings WHERE guild_id = $1",
                                                   ctx.guild.id)
 
-        await ctx.send(f"🚩 {member} has been warned. This is warning #{warn_num}.")
+        await ctx.reply(f"🚩 {member} has been warned. This is warning #{warn_num}.")
         try:
             await self.bot.terrygon_logger.mod_logs(ctx, 'warn', member, ctx.author, reason)
         except errors.LoggingError:
@@ -326,7 +327,7 @@ class Warn(commands.Cog):
             try:
                 member = await self.bot.fetch_user(member)
             except discord.NotFound:
-                return await ctx.send("Invalid user given.")
+                return await ctx.reply("Invalid user given.")
 
         async with self.bot.db.acquire() as conn:
             warn_records = await conn.fetch("SELECT * FROM warns WHERE user_id = $1 AND guild_id = $2", member.id,
@@ -339,20 +340,20 @@ class Warn(commands.Cog):
                         break
 
                 if deleted_warn is None:
-                    await ctx.send(f"This user does not have a warn {warn_num}")
+                    await ctx.reply(f"This user does not have a warn {warn_num}")
                     return
 
                 # just in case, should never trigger!
                 if deleted_warn.guild_id != ctx.guild.id:
-                    await ctx.send("You cannot clear another guild's warns!")
+                    await ctx.reply("You cannot clear another guild's warns!")
                     return
 
                 await conn.execute("DELETE FROM warns WHERE warn_id = $1", deleted_warn.id)
 
             else:
-                return await ctx.send("This user has no warns on this server!")
+                return await ctx.reply("This user has no warns on this server!")
 
-            await ctx.send(f"Warn {warn_num} removed!")
+            await ctx.reply(f"Warn {warn_num} removed!")
             await self.bot.terrygon_logger.warn_clear('clear', member, ctx.author, deleted_warn)
 
     @commands.guild_only()
@@ -373,7 +374,7 @@ class Warn(commands.Cog):
         has_perms = await checks.nondeco_is_staff_or_perms(ctx, self.bot.db, "Mod", manage_roles=True)
 
         if not has_perms and member != ctx.message.author:
-            return await ctx.send("You don't have permission to list other member's warns!")
+            return await ctx.reply("You don't have permission to list other member's warns!")
 
         async with self.bot.db.acquire() as conn:
             warn_records = await conn.fetch("SELECT * FROM warns WHERE user_id = $1 AND guild_id = $2", member.id,
@@ -383,7 +384,7 @@ class Warn(commands.Cog):
             embed = discord.Embed(color=member.color)
             embed.set_author(name=f"Warns for {member.name}#{member.discriminator}", icon_url=member.display_avatar.url)
             embed.description = "There are none!"
-            return await ctx.send(embed=embed)
+            return await ctx.reply(embed=embed)
 
         user_warns = []
         for warn in warn_records:
@@ -402,7 +403,7 @@ class Warn(commands.Cog):
 
         if not in_server:
             embed.set_footer(text="This user is not in the server")
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed)
 
     @commands.guild_only()
     @checks.is_staff_or_perms("Mod", manage_roles=True, manage_channels=True)
@@ -414,18 +415,18 @@ class Warn(commands.Cog):
             try:
                 member = await self.bot.fetch_user(member)
             except discord.NotFound:
-                return await ctx.send("Invalid user given.")
+                return await ctx.reply("Invalid user given.")
 
         async with self.bot.db.acquire() as conn:
             warn_nums = await conn.fetchval("SELECT COUNT(warn_id) FROM warns WHERE user_id = $1 AND guild_id = $2",
                                             member.id, ctx.guild.id)
             if warn_nums is None:
-                await ctx.send("No warns found")
+                await ctx.reply("No warns found")
 
             else:
                 await self.bot.terrygon_logger.warn_clear('clear', member, ctx.author)
                 await conn.execute("DELETE FROM warns WHERE user_id = $1 AND guild_id = $2", member.id, ctx.guild.id)
-                await ctx.send(f"{warn_nums} warns cleared from {member}")
+                await ctx.reply(f"{warn_nums} warns cleared from {member}")
 
 
 async def setup(bot):
