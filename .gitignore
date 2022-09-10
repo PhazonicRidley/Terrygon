@@ -433,3 +433,4 @@ cython_debug/
 /workspace.xml
 /backups
 /venv-real/
+/data/config.toml
