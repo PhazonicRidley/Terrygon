@@ -83,6 +83,10 @@ class BaseButtonPaginator(discord.ui.View):
         """
         raise NotImplementedError('Subclass did not overwrite format_page coro.')
 
+    async def on_timeout(self):
+        """Runs when timeout happens"""
+        await self.stop_paginator()
+
     def _format_pages(self, entries, per_page) -> Generator[List[Any], None, None]:
         for i in range(0, len(entries), per_page):
             yield entries[i:i + per_page]
@@ -153,13 +157,15 @@ class BaseButtonPaginator(discord.ui.View):
         """Stops paginator from button"""
         await self.stop_paginator(interaction)
 
-    async def stop_paginator(self, interaction: discord.Interaction, to_delete_msg: bool =None):
+    async def stop_paginator(self, interaction: discord.Interaction = None, to_delete_msg: bool = None):
         """Stops the paginator asynchronously"""
         if not to_delete_msg:
             to_delete_msg = self.to_delete_msg
         self.clear_items()
         self.stop()
-        if to_delete_msg:
+        if not interaction:
+            return await self.message.edit(view=self)
+        elif to_delete_msg:
             return await interaction.message.delete()
         else:
             return await interaction.response.edit_message(view=self)
@@ -173,7 +179,7 @@ class BaseButtonPaginator(discord.ui.View):
         embed = await self.format_page(entries=entries)
         if self.total_pages == 1:
             for child in self.children:
-                if child.custom_id != 'stop':
+                if isinstance(child, discord.ui.Button) and child.custom_id != 'stop':
                     child.disabled = True
         if message:
             await message.edit(embed=embed, view=self)

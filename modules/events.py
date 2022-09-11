@@ -110,11 +110,9 @@ class Events(commands.Cog):
             if muted_id:
                 muted_role_id = await conn.fetchval("SELECT muted_role FROM roles WHERE guild_id = $1", member.guild.id)
                 muted_role = member.guild.get_role(muted_role_id)
-                if not muted_role_id or not muted_role:
-                    return
-
-                await member.add_roles(muted_role,
-                                       reason=f"User muted for the reason {reason!r} on join." if reason else "User muted on join.")
+                if muted_role_id and muted_role:
+                    await member.add_roles(muted_role,
+                                           reason=f"User muted for the reason {reason!r} on join." if reason else "User muted on join.")
 
             # check if member is probated and for auto probation.
             probation_role_id = await conn.fetchval("SELECT probation_role FROM roles WHERE guild_id = $1",
@@ -130,13 +128,32 @@ class Events(commands.Cog):
                     "INSERT INTO probations (user_id, author_id, guild_id, reason) VALUES ($1, $2, $3, 'Auto probate')",
                     member.id, self.bot.user.id, member.guild.id)
 
-            probated_id, reason = await conn.fetchrow(
-                "SELECT id, reason FROM probations WHERE user_id = $1 AND guild_id = $2", member.id, member.guild.id)
+            try:
+                probated_id, reason = await conn.fetchrow(
+                    "SELECT id, reason FROM probations WHERE user_id = $1 AND guild_id = $2", member.id, member.guild.id)
+            except TypeError:
+                probated_id = None
 
             if probation_role_id and probation_role and probated_id:
-                await member.add_roles(probation_role,
-                                       reason=f"User probated for the reason {reason!r} on join." if reason else "User probated on join.")
+                try:
+                    await member.add_roles(probation_role,
+                                           reason=f"User probated for the reason {reason!r} on join." if reason else "User probated on join.")
+                except discord.Forbidden:
+                    pass
 
+            # check for personal color roles, re-add if needed
+            color_mode = await conn.fetchval("SELECT mode FROM color_settings WHERE guild_id = $1", member.guild.id)
+            if color_mode and color_mode == 'personal':
+                # fetch personal color data
+                color_role_id = await conn.fetchval(
+                    "SELECT role_id FROM personal_colors WHERE guild_id = $1 AND user_id = $2",
+                    member.guild.id, member.id)
+                color_role = member.guild.get_role(color_role_id)
+                if color_role:
+                    try:
+                        await member.add_roles(color_role, reason="Re added personal color to user")
+                    except discord.Forbidden:
+                        pass
             # logs join
             if await conn.fetchval("SELECT enable_join_leave_logs FROM guild_settings WHERE guild_id = $1",
                                    member.guild.id) and logs:
@@ -260,7 +277,8 @@ class Events(commands.Cog):
         """Fully removes a guild and its data (Bot owner only)"""
         guild = await self.bot.fetch_guild(guild_id)
         async with self.bot.db.acquire() as conn:
-            schema_list = await conn.fetchrow("SELECT table_name FROM information_schema.columns WHERE column_name = 'guild_id'")
+            schema_list = await conn.fetchrow(
+                "SELECT table_name FROM information_schema.columns WHERE column_name = 'guild_id'")
             for table in schema_list:
                 try:
                     await conn.execute(f"DELETE FROM {table} WHERE guild_id = $1", guild.id)
@@ -298,7 +316,8 @@ class Events(commands.Cog):
 
         if option is None:
             if status:
-                return await ctx.reply("Auto probate is currently enabled. To disable, please run `autoprobate disable`")
+                return await ctx.reply(
+                    "Auto probate is currently enabled. To disable, please run `autoprobate disable`")
             else:
                 return await ctx.reply("Auto probate is currently disabled. To enable, please run `autoprobate enable`")
 
@@ -322,7 +341,8 @@ class Events(commands.Cog):
             await ctx.reply("Invalid option given.")
             return await ctx.send_help(ctx.command)
 
-        await self.bot.terrygon_logger.custom_log("mod_logs", ctx.guild, msg + f"\nBy {ctx.author.mention} ({ctx.author.id})")
+        await self.bot.terrygon_logger.custom_log("mod_logs", ctx.guild,
+                                                  msg + f"\nBy {ctx.author.mention} ({ctx.author.id})")
 
 
 async def setup(bot):

@@ -11,11 +11,23 @@ class AccountInfo(commands.Cog):
         self.bot = bot
 
     @commands.group(name="account", aliases=['accounts'], invoke_without_command=True)
-    async def account_info(self, ctx: commands.Context):
-        await ctx.send_help(ctx.command)
+    async def account_info(self, ctx: commands.Context, account_name: str = None):
+        """A command to store account data, can be used to share your usernames with your friends for convenience!"""
+        if not account_name:
+            return await ctx.send_help(ctx.command)
+
+        # fetch account if possible
+        account_name = account_name.lower()
+        account_content = await self.bot.db.fetchval("SELECT content FROM accounts WHERE user_id = $1 AND name = $2", ctx.author.id, account_name)
+        if not account_content:
+            await ctx.reply(f"No account by the name `{account_name}` found, if you would like to add it, please use `{ctx.prefix}account add {account_name}`.")
+        else:
+            embed = discord.Embed(color=common.gen_color(ctx.author.id), title=account_name.title(), description=account_content)
+            embed.set_author(name=f"Account for {ctx.author}", icon_url=ctx.author.display_avatar.url)
+            return await ctx.reply(embed=embed)
 
     @account_info.command(name="add")
-    async def account_add(self, ctx: commands.Context, name: str, *, acc: str):
+    async def account_add(self, ctx: commands.Context, name: str, *, account: str):
         """Adds an account to a set name."""
         exists = await self.bot.db.fetchval("SELECT name FROM accounts WHERE user_id = $1 AND name = $2",
                                             ctx.author.id, name.lower())
@@ -24,10 +36,10 @@ class AccountInfo(commands.Cog):
             await ctx.reply("An account by this name already exists, would you like to replace it?", view=confirmation)
             await confirmation.wait()
             if confirmation.value:
-                await self.bot.db.execute("UPDATE accounts SET content = $1 WHERE user_id = $2 AND name = $3", acc, ctx.author.id, name.lower())
+                await self.bot.db.execute("UPDATE accounts SET content = $1 WHERE user_id = $2 AND name = $3", account, ctx.author.id, name.lower())
         else:
             await self.bot.db.execute("INSERT INTO accounts (user_id, name, content) VALUES ($1, $2, $3)",
-                                      ctx.author.id, name.lower(), acc)
+                                      ctx.author.id, name.lower(), account)
             await ctx.reply(f"`{name.title()}` Added.")
 
     @account_info.command(name="remove", aliases=['del', 'delete'])

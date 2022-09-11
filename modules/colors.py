@@ -133,6 +133,14 @@ class Colors(commands.Cog):
         else:
             # update hex of color role
             color_role = ctx.guild.get_role(role_data[0])
+            if not color_role:
+                await self.bot.db.execute("DELETE FROM personal_colors WHERE guild_id = $1 AND user_id = $2",
+                                          ctx.guild.id, user.id)
+                try:
+                    await self.toggle_personal_color(ctx, color_hex_in, user)
+                except RecursionError:
+                    await ctx.reply("A recursion error has occurred, aborting! Please run this command again")
+                return
             if color_role not in user.roles:
                 try:
                     await user.add_roles(color_role)
