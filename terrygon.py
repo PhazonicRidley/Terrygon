@@ -5,11 +5,12 @@ import sys
 import os
 import discord
 from discord.ext import commands, flags
+from discord import app_commands
 import asyncpg
 import asyncio
-from logzero import setup_logger
+from logzero import setup_logger, logger
 import toml
-from utils import errors, scheduler, checks, custom_views, help
+from utils import errors, scheduler, checks, help
 from utils.logger import TerrygonLogger
 import json
 
@@ -55,7 +56,7 @@ async def _callable_prefix(bot, message: discord.Message):
         return commands.when_mentioned_or(default_prefix)(bot, message)
 
 
-class Terrygon(commands.AutoShardedBot):
+class Terrygon(commands.Bot):
     """Main bot class"""
 
     def __init__(self):
@@ -64,7 +65,6 @@ class Terrygon(commands.AutoShardedBot):
         self.console_output_log = setup_logger(name="console_output_log", logfile="data/logs/console_output.log",
                                                maxBytes=100000)
 
-        # help_cmd = TerryHelp(dm_help=None, dm_help_threshold=800)
         help_cmd = help.TerryHelp()
         super().__init__(command_prefix=_callable_prefix, description=read_config("info", "description"),
                          max_messages=10000,
@@ -73,6 +73,7 @@ class Terrygon(commands.AutoShardedBot):
                          intents=discord.Intents().all(), owner_ids=read_config("bot_management", "bot_owners"))
 
         # set up bot stdout logging, discord logging, and time event scheduling
+        self.tree.error_log = self.error_log
         self.terrygon_logger = TerrygonLogger(self)
         self.console_output_log.info("Discord logger has been configured")
         self.scheduler = scheduler.Scheduler(self)
@@ -90,6 +91,25 @@ class Terrygon(commands.AutoShardedBot):
             print("Unable to connect to the postgresql database, please check your configuration!")
             self.error_log.exception("".join(format_exception(type(e), e, e.__traceback__)))
             exit(-1)
+
+        await self.prepare_db()
+        self.console_output_log.info("Schema configured")
+        await self.load_extension("jishaku")
+        self.console_output_log.info("jsk has been loaded")  # de-bugging cog
+        modules = read_config("info", "modules")
+        if modules:
+            for module in modules:
+                try:
+                    await self.load_extension("modules." + module)
+                    self.console_output_log.info(f"{module} module loaded")
+                except Exception as e:
+                    err_msg = f"Failed to load the module {module}:\n{''.join(format_exception(type(e), e, e.__traceback__))}"
+                    self.error_log.exception(err_msg)
+
+        asyncio.create_task(self.scheduler.run_timed_jobs(), name="Timer Jobs Loop")
+        self.console_output_log.info("Timers configured")
+        self.tree.copy_global_to(guild=discord.Object(id=656294266867548160))
+        await self.tree.sync(guild=discord.Object(id=656294266867548160))
 
     async def prepare_db(self):
         """Prepare our database for use"""
@@ -130,14 +150,14 @@ class Terrygon(commands.AutoShardedBot):
 
         # handles command cool downs
         elif isinstance(error, commands.errors.CommandOnCooldown):
-            await ctx.send("This command was used {:.2f}s ago and is on cooldown. Try again in {:.2f}s.".format(
-                error.cooldown.per - error.retry_after, error.retry_after))
+            await ctx.reply("This command was used {:.2f}s ago and is on cooldown. Try again in {:.2f}s.".format(
+                error.cooldown.per - error.retry_after, error.retry_after), ephemeral=True)
 
-        # handles commands that are attempted to be used outside a guild.
+        # Handle commands that are attempted to be used outside a guild.
         elif isinstance(error, commands.errors.NoPrivateMessage):
-            await ctx.send("You cannot use this command outside of a server!")
+            await ctx.reply("You cannot use this command outside of a server!")
 
-        # handles a privileged command when a user with out the right requirements attempts to use it.
+        # handles a privileged command when a user without the right requirements attempts to use it.
         elif isinstance(error, errors.MissingStaffRoleOrPerms):
             msg = f"You do not have at least the {error.mod_role} role"
             if error.perms:
@@ -145,26 +165,26 @@ class Terrygon(commands.AutoShardedBot):
                 for perm in error.perms:
                     msg += f"`{perm}` "
             msg += " and thus cannot use this command."
-            await ctx.send(msg)
+            await ctx.reply(msg, ephemeral=True)
 
         # handles command that require staff roles and none are saved.
         elif isinstance(error, errors.NoStaffRolesSaved):
-            await ctx.send("No staff roles in the database for this server please add some!")
+            await ctx.reply("No staff roles in the database for this server please add some!", ephemeral=True)
 
         # handles all bot owner commands that are used by someone who is not a bot owner.
         elif isinstance(error, (errors.BotOwnerError, commands.errors.NotOwner)):
-            await ctx.send("You cannot use this as you are not a bot owner")
+            await ctx.reply("You cannot use this as you are not a bot owner", ephemeral=True)
 
         # handles trusted commands used by untrusted users.
         elif isinstance(error, errors.UntrustedError):
-            await ctx.send("You are not a trusted user or a staff member and thus cannot use this!")
+            await ctx.reply("You are not a trusted user or a staff member and thus cannot use this!", ephemeral=True)
 
         elif isinstance(error, commands.ExtensionAlreadyLoaded):
             return
 
         # handles any uncaught command, posts traceback in the assigned bot errors channel.
         else:
-            await ctx.send(f"An error occurred while processing the `{ctx.command.name}` command.")
+            await ctx.send(f"An error occurred while processing the `{ctx.command.name}` command.", ephemeral=True)
             if ctx.guild:
                 log_msg = f"Exception occurred in `{ctx.command}` in {ctx.channel.name}"
                 self.error_log.error(
@@ -186,23 +206,8 @@ class Terrygon(commands.AutoShardedBot):
 
     async def on_ready(self):
         """Code that runs when the bot is starting up"""
-        await self.prepare_db()
-        await self.load_extension("jishaku")  # de-bugging cog
-        self.console_output_log.info("jsk has been loaded")
-        self.console_output_log.info("Schema configured")
-        modules = read_config("info", "modules")
-        if modules:
-            for module in modules:
-                try:
-                    await self.load_extension("modules." + module)
-                    self.console_output_log.info(f"{module} module loaded")
-                except Exception as e:
-                    err_msg = f"Failed to load the module {module}:\n{''.join(format_exception(type(e), e, e.__traceback__))}"
-                    self.error_log.exception(err_msg)
-
-        self.console_output_log.info(f"Client logged in as {self.user}")
         await self.change_presence(activity=discord.Game(read_config("info", "activity")))
-        asyncio.create_task(self.scheduler.run_timed_jobs(), name="Timer Jobs Loop")
+        self.console_output_log.info(f"Client logged in as {self.user}")
 
     async def is_log_registered(self, guild: discord.Guild, log_type):
         """Checks to see if a log channel is registered for a given guild"""
