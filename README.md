@@ -22,7 +22,11 @@ A modular discord bot written in Python
 9. Run commands `systemctl --user daemon-reload` and then finally `systemctl --user start terrygon.service`. You may also choose to enable this at start up.
 
 ### Docker:
-WIP
+1. Install Docker and then clone this repository.
+2. Enter the cloned repo directory in a terminal.
+3. Run `cp config.toml.example config.toml` if you are on linux or macos, `copy config.toml.example config.toml` if you are on windows.
+4. Edit the `config.toml` fields with your information. Each field is labled on what it does, if you need help making a bot token, you can check [here](https://tinyurl.com/yad4qmz3) 
+5. Run `docker compose up -d` and docker will automatically make a containerized bot. The `data` folder is a volume into the container.
 
 ## Requirements
 - Python 3.9 or later
